@@ -1,0 +1,82 @@
+{
+  "_note": "Sanitized reference for the real visitor-intent-to-outbound system behind crm-outbound-sync. Real API keys, credential names, spreadsheet IDs, campaign IDs, and the ICP-classification system prompt's company name are replaced with placeholders. Business rules (disqualification keywords, scoring formula, segment definitions) are unchanged from production.",
+  "trigger": {
+    "name": "Visitor-Intent Webhook",
+    "type": "n8n-nodes-base.webhook",
+    "note": "Receives de-anonymized website-visitor events from a visitor-identification platform (name, title, company, employee count, revenue estimate, page path, referrer)."
+  },
+  "pipeline_stages": [
+    {
+      "name": "Normalize",
+      "type": "n8n-nodes-base.code",
+      "note": "Parses revenue strings like '$2.5M' into a raw number, parses employee-count strings into an integer, resolves a company domain from either the visitor's website field or their email domain as a fallback, and extracts the URL path the visitor was on for later scoring."
+    },
+    {
+      "name": "Dedup Lookup",
+      "type": "n8n-nodes-base.googleSheets",
+      "note": "Looks up the visitor's unique identifier (LinkedIn URL, in production) against a processed-visitors sheet before doing any paid enrichment work - an already-seen visitor just gets its last-seen timestamp bumped and skips straight past the entire scoring/enrichment path, so a repeat visit never re-spends enrichment budget.",
+      "credentials": {"googleSheetsOAuth2Api": "{{GOOGLE_SHEETS_CREDENTIAL}}"}
+    },
+    {
+      "name": "Seen Before? -> Update Last Seen / Disqualify",
+      "type": "n8n-nodes-base.if"
+    },
+    {
+      "name": "Disqualify",
+      "type": "n8n-nodes-base.code",
+      "note": "Rule-based pre-filter before any paid API call: flags a visitor as disqualified if their URL path matches a careers/jobs page (job seeker, not a buyer) or if their company/industry text matches a denylist of competitor/vendor-category keywords (software development agencies, IT staffing, systems integrators, etc - i.e. don't spend enrichment budget qualifying another agency as if it were a customer)."
+    },
+    {
+      "name": "Disqualified? -> Log Disqualified / continue",
+      "type": "n8n-nodes-base.if"
+    },
+    {
+      "name": "Apollo Match",
+      "type": "n8n-nodes-base.httpRequest",
+      "note": "Person/organization match against a contact-enrichment API, keyed by email if present, otherwise by name + company + domain. Only called AFTER the disqualification filter, not before - the whole point of the rule-based pre-filter is to avoid spending a paid enrichment call on a visitor the keyword rules already know isn't a fit.",
+      "credentials": {"httpHeaderAuth": "{{ENRICHMENT_API_CREDENTIAL}}"}
+    },
+    {
+      "name": "Merge Apollo",
+      "type": "n8n-nodes-base.code",
+      "note": "Merges enrichment response onto the base record: funding stage, technology stack list, employee count fallback, and a resolved email address if the webhook payload didn't already have one."
+    },
+    {
+      "name": "Has Email? -> Ambiguous? -> Classify (LLM) / Score directly",
+      "type": "n8n-nodes-base.if / n8n-nodes-base.if",
+      "note": "A visitor with no resolvable email is logged as a LinkedIn-only outreach candidate (different downstream channel, not dropped). Among visitors WITH an email, only the ambiguous ones (path is the site root or empty, or industry field is blank - i.e. the rule-based scorer below has too little signal to score confidently) get routed through an LLM classification call. Everything unambiguous skips the LLM entirely and goes straight to rule-based scoring - the model is a fallback for the genuinely unclear cases, not the primary classifier."
+    },
+    {
+      "name": "Classify (LLM)",
+      "type": "n8n-nodes-base.openAi",
+      "note": "System prompt asks for a structured JSON classification: qualified (boolean), sub_segment (one of several named ICP segments - e.g. recently-funded-no-CTO, outgrowing-a-no-code-tool, actively-hiring-a-developer, mid-market-overloaded-engineering-team, enterprise-innovation-team, game-development, or generic), an intent score 0-1, and a reason string. Explicitly instructed to disqualify students, job seekers, competing agencies, and existing vendors."
+    },
+    {
+      "name": "Score & Route",
+      "type": "n8n-nodes-base.code",
+      "note": "Rule-based intent score from URL path pattern (a pricing/contact/quote-request page scores near 1.0; a blog/press/about page scores low; an industry or solutions landing page scores high-but-not-max; the bare root domain scores mid-low) combined with a rule-based fit score (title seniority, employee count, revenue, and a 'hot lead' tag boost). If a segment came back from the LLM step, its intent/qualified verdict overrides the rule-based intent score and can cap fit low on an explicit disqualify. Final score = weighted blend of intent and fit (60/40 in production). A game-development-specific segment gets a separate scoring path entirely since gaming leads warrant different messaging. Routes to one of two outbound campaign IDs depending on segment (specialized vs. general), each a config placeholder here."
+    },
+    {
+      "name": "Qualified? -> Add to Smartlead / Log Not-ICP",
+      "type": "n8n-nodes-base.if"
+    },
+    {
+      "name": "Add to Smartlead",
+      "type": "n8n-nodes-base.httpRequest",
+      "note": "Creates the lead in the campaign resolved by the scoring step, with custom fields carrying the original service/segment/captured-URL context through to the outbound platform - so a reply handler downstream can see why this specific lead was routed the way it was, not just that it was.",
+      "credentials": {"httpQueryAuth": "{{OUTBOUND_PLATFORM_CREDENTIAL}}"}
+    }
+  ],
+  "companion_flows": [
+    {
+      "name": "CRM Deal -> Outbound Lead Creation",
+      "trigger": "n8n-nodes-base.webhook (CRM deal-stage-changed event)",
+      "note": "A separate, smaller flow: when a CRM deal reaches a qualifying stage, look up its associated contact, pull full contact details, and create the corresponding lead in the outbound platform - then mark the CRM contact as synced so the same deal event can't create a duplicate outbound lead on a retry. Deals with no associated contact yet are queued in a side table rather than dropped, since the contact often gets attached moments later by a separate process."
+    },
+    {
+      "name": "Outbound Reply Event -> CRM Status Update",
+      "trigger": "n8n-nodes-base.webhook (outbound-platform event webhook)",
+      "note": "On a reply event specifically (not opens/clicks), pulls the full message thread and classifies the reply's own body text into INTERESTED / NOT INTERESTED / OUT OF OFFICE via a lightweight LLM call, then writes the sequence step, the classification, and the two raw email addresses back onto the matching CRM contact. A NOT INTERESTED classification, or a reply landing on the final sequence step without an INTERESTED verdict, marks the CRM record COMPLETED so it stops being treated as still-in-sequence; anything else stays IN PROGRESS."
+    }
+  ]
+}

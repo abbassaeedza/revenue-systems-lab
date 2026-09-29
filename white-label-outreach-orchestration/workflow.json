@@ -1,0 +1,26 @@
+{
+  "_note": "Sanitized reference for the n8n orchestration layer behind the White-Label Outreach Pipeline case study (systems-case-studies). The scraper itself and the unsubscribe/reply edge worker are separate Node.js/Cloudflare Workers components, documented in that case study - this covers the n8n layer that ties them together: ingest, enrichment, personalized send, and event tracking. Real company name, address, sender identity, infrastructure URLs, and API keys are replaced with placeholders. Named third-party companies used as social-proof in the outreach copy are genericized. Live credential values (an email-API key and an HMAC signing secret) were exposed in the raw source handed to me for this pass - both are placeholders below and both should be rotated regardless of what happens with this repo.",
+  "ingest_stage": {
+    "name": "Scrape ingest (local push)",
+    "type": "n8n-nodes-base.webhook",
+    "note": "Receives a batch of scraped agency-directory company records from the external scraper component, explodes the batch into one item per company, and upserts them into a companies sheet keyed by domain."
+  },
+  "enrichment_stage": {
+    "trigger": "n8n-nodes-base.scheduleTrigger (nightly)",
+    "note": "Reads all not-yet-enriched companies, caps the batch, and for each one searches a contact-enrichment API for a decision-maker (owner/founder/CEO/president/managing director/partner/biz-dev roles, filtered to a target country), then reveals full contact details for the best match. A company with no matched person, or a revealed contact with no usable email, is marked enriched:none rather than retried indefinitely - a company genuinely has no findable decision-maker sometimes, and the system treats that as a terminal outcome, not a bug."
+  },
+  "send_stage": {
+    "trigger": "n8n-nodes-base.scheduleTrigger (weekday afternoons, gated to the target timezone's working hours)",
+    "note": "Reads enriched contacts not yet sent to and not unsubscribed, caps the send batch small, builds a personalized pitch (brand name derived from the domain, a rotating set of subject-line/body variants, plain-text formatting), generates an HMAC-signed one-click unsubscribe link using the same signing scheme as the edge worker documented in the case study, sends via a transactional email API, and logs the send with full body/subject/stats back to a tracking sheet for auditability.",
+    "compliance_detail": "Every outbound message carries a List-Unsubscribe header (both a mailto fallback and the one-click HMAC link) per current bulk-sender requirements, not just a footer link - this was a specific, deliberate compliance decision, not an oversight caught later."
+  },
+  "event_tracking_stage": {
+    "trigger": "n8n-nodes-base.webhook",
+    "note": "Receives reply/unsubscribe events (forwarded from the edge worker documented in the case study) and writes them back onto the matching contact row - a reply marks 'replied' with a timestamp, an unsubscribe marks 'unsubscribed' with a timestamp so the send-stage filter excludes that contact on every future run."
+  },
+  "sanitization_notes": [
+    "Real company name and legal address, real sender personal name/title, real sending-domain addresses, and a real Cloudflare Workers URL were all replaced with placeholders.",
+    "The real outreach copy named specific well-known third-party companies as past-work social proof - genericized here since those company names weren't Abbas's to publish either way, separate from the employer-anonymization question.",
+    "A real Resend API key and a real HMAC unsubscribe-signing secret were hardcoded in plaintext in the source workflow (not pulled from n8n's credential store) - both were flagged for rotation the moment they were seen, independent of this sanitization pass."
+  ]
+}

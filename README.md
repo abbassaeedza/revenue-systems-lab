@@ -22,19 +22,21 @@ and not a one-off, which is why that one stayed a demo rather than a single sani
 |---|---|---|
 | [`hiring-signal-pipeline/`](hiring-signal-pipeline/) | Multi-source signal ingestion → normalize → dedup → score → resolve → outbound-eligibility gate | Demo + real reference |
 | [`enrichment-waterfall/`](enrichment-waterfall/) | Ordered multi-provider enrichment chain, non-destructive writes, rate-limit fallback | Demo |
-| [`crm-outbound-sync/`](crm-outbound-sync/) | Bidirectional, idempotent CRM ↔ outbound-platform state sync | Demo |
+| [`crm-outbound-sync/`](crm-outbound-sync/) | Bidirectional, idempotent CRM ↔ outbound-platform state sync | Demo + real reference |
 | [`shared-error-handler/`](shared-error-handler/) | Standardized error capture → structured payload → alert dispatch | Demo + real reference |
 | [`lead-scoring/`](lead-scoring/) | DB-side signal computation + tiered contact scoring | Real (sanitized) |
 | [`contact-resolution/`](contact-resolution/) | Two-tier paid-lookup waterfall gated behind a score threshold | Real (sanitized) |
 | [`staleness-recheck/`](staleness-recheck/) | Time-boxed signal decay — rechecks aging records instead of trusting them forever | Real (sanitized) |
 | [`reply-classification-router/`](reply-classification-router/) | Account-wide webhook event filter + structured activity log | Real (sanitized) |
+| [`guest-post-prospecting-pipeline/`](guest-post-prospecting-pipeline/) | Search-discovery fan-out -> two-tier email resolution -> verify-then-send with dual-mailbox rotation | Real (sanitized) |
+| [`white-label-outreach-orchestration/`](white-label-outreach-orchestration/) | Scraper ingest -> nightly enrichment -> gated compliant send -> event tracking | Real (sanitized) |
 
 Every module is self-contained and has its own README. The demo modules are runnable
 (`python3 <module>.py`, stdlib-only, no install step) with a self-check proving the core invariant
 they exist to protect. The real-workflow modules are n8n exports meant to be read, not run
 standalone — import into a local n8n instance if you want to inspect the graph visually.
 
-## Why these eight
+## Why these ten
 
 Production automation systems that ingest external signals and turn them into qualified outbound
 contact tend to hit the same handful of problems regardless of stack: signals arrive from sources
@@ -42,5 +44,6 @@ that disagree with each other, enrichment/resolution providers are unreliable an
 good data with bad (or get called before a signal's proven worth the cost), CRM and
 outbound-platform state drifts apart without an explicit sync contract, stale signals rot silently
 without an active recheck, noisy event streams need filtering before they're useful, and silent
-failures in a scheduled pipeline are worse than loud ones. These eight modules are the reusable
-answer to each — four demonstrated clean-room, four shown as the real, sanitized thing.
+failures in a scheduled pipeline are worse than loud ones. These ten modules are the reusable
+answer to each - one demonstrated clean-room-only, three shown both as a clean-room demo and a
+real sanitized reference, and six shown only as the real, sanitized thing.
