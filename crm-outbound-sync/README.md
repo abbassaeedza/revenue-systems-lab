@@ -2,7 +2,7 @@
 
 Pattern: de-anonymized visitor event -> cheap disqualify -> dedup -> enrich -> score (rule-based, with an LLM fallback for ambiguous cases) -> segment-routed outbound send -> reply event -> CRM state update. Bidirectional, idempotent in both directions.
 
-> Sanitized real workflow, not a clean-room demo. Credentials, API keys, spreadsheet/campaign IDs, and the ICP-classification system prompt's company name are replaced with placeholders in `workflow.json`. Business rules (disqualification keywords, the scoring formula, segment definitions) are unchanged from production.
+> Sanitized real workflows (three files: visitor-intent scoring/routing, CRM-to-outbound lead creation, outbound-reply-to-CRM update). Credentials, API keys, campaign IDs, and the ICP-classification prompt company name are placeholders.
 
 Two invariants that mattered in production:
 
@@ -16,6 +16,8 @@ Two invariants that mattered in production:
 3. **Enrich, then score.** A contact-enrichment API resolves firmographic + person data; a rule-based score combines URL-path intent (a pricing/contact page scores near-max, a blog/about page scores low) with a rule-based fit score (title seniority, company size, revenue, tag boosts). Only genuinely ambiguous cases (root-domain visit, or no industry data at all) fall through to an LLM classification call - the model is a fallback for real uncertainty, not the primary classifier.
 4. **Segment-routed send.** Qualified visitors route into one of several outbound campaigns by segment, not one generic sequence.
 5. **Reply-triggered CRM update.** An inbound reply gets classified (interested / not interested / out of office) and written back onto the CRM contact, advancing or completing its sequence status - closing the loop without a human having to notice and act on the reply manually.
+
+Files: steps 1-3 are the scoring/routing workflow; step 4's CRM-triggered half (a deal reaching a qualifying stage) is the CRM-to-outbound-lead workflow; step 5 is the outbound-reply-to-CRM workflow.
 
 ## Why it's built this way
 

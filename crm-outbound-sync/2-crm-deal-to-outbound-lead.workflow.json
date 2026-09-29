@@ -1,0 +1,15 @@
+{
+  "_note": "Sanitized reference, real workflow. Real campaign ID and any credential display names replaced with placeholders. Node logic and control flow are unchanged.",
+  "trigger": {"name": "Qualified Deal From CRM", "type": "n8n-nodes-base.webhook", "note": "Fires on a CRM deal-stage-changed event (deal reached a qualifying stage)."},
+  "stages": [
+    {"name": "Set IDs", "type": "n8n-nodes-base.set", "note": "Extracts deal_name, deal_id, deal_stage from the webhook body; sets the target outbound campaign ID as a fixed value (placeholder here - a real deployment maps this per deal-stage or pipeline)."},
+    {"name": "Wait", "type": "n8n-nodes-base.wait"},
+    {"name": "Get Deal Associated Contacts", "type": "n8n-nodes-base.httpRequest", "credentials": "{{CRM_API_CREDENTIAL}}"},
+    {"name": "If Contacts Exist? -> Store Deals w/o Contacts", "type": "n8n-nodes-base.if / n8n-nodes-base.dataTable", "note": "A deal with no associated contact yet isn't dropped - it's logged to a side table, since the contact is often attached moments later by a separate process, not lost data."},
+    {"name": "Set Contact ID -> Wait -> Get Contact Details", "type": "n8n-nodes-base.set / n8n-nodes-base.wait / n8n-nodes-base.httpRequest", "note": "Pulls full contact properties (email, name, phone, location) once a contact ID is known."},
+    {"name": "If Email Exists? -> Insert Row (contacts without email)", "type": "n8n-nodes-base.if / n8n-nodes-base.dataTable", "note": "Same non-drop principle - a contact with no usable email is logged to its own side table rather than silently skipped."},
+    {"name": "Create Lead in Outbound Platform", "type": "n8n-nodes-base.httpRequest", "credentials": "{{OUTBOUND_PLATFORM_CREDENTIAL}}", "note": "Creates the lead in the target campaign with the CRM contact ID carried through as a custom field, so the reply-handling companion workflow can match a reply back to the right CRM contact."},
+    {"name": "Set 'Synced' Flag in CRM", "type": "n8n-nodes-base.httpRequest", "note": "PATCHes the CRM contact to mark it synced - the idempotency check: a contact already marked synced is a no-op on the next pass, not a duplicate outbound lead."}
+  ],
+  "why_this_exists": "This is the CRM -> outbound direction of the bidirectional sync. It's a separate, smaller, deal-triggered workflow rather than folded into the visitor-intent workflow (file 1) because the trigger, cadence, and failure modes are genuinely different: this one fires on a CRM event and deals with 'no contact yet' as a real, common, non-error state; the visitor-intent workflow fires on a webhook from a de-anonymization platform and has an entirely different disqualify/score/route decision to make before anything reaches the outbound platform at all."
+}

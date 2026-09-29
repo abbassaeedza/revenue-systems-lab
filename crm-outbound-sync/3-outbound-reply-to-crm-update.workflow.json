@@ -1,0 +1,12 @@
+{
+  "_note": "Sanitized reference, real workflow. Any credential display names replaced with placeholders. Node logic, classification prompt, and status-transition rules are unchanged.",
+  "trigger": {"name": "Outbound Platform Event", "type": "n8n-nodes-base.webhook", "note": "Fires on any outbound-platform event (open, click, reply, bounce) for a lead created by file 2."},
+  "stages": [
+    {"name": "Set IDs", "type": "n8n-nodes-base.set", "note": "Extracts lead_id, campaign_id, event_type, to_email, from_email from the webhook body."},
+    {"name": "Wait -> Get Lead Data -> Get Message History", "type": "n8n-nodes-base.wait / n8n-nodes-base.httpRequest / n8n-nodes-base.httpRequest", "credentials": "{{OUTBOUND_PLATFORM_CREDENTIAL}}", "note": "Pulls the lead's custom fields (including the CRM contact ID stashed by file 2) and its full message thread."},
+    {"name": "If Replied? -> Classify Reply (LLM) / skip", "type": "n8n-nodes-base.if / @n8n/n8n-nodes-langchain.agent", "note": "Only a genuine REPLY event triggers the classification call - opens/clicks/bounces skip straight to the CRM-update step with no LLM call at all, since there's no reply text to classify. The prompt is intentionally narrow: exactly one of INTERESTED / NOT INTERESTED / OUT OF OFFICE, nothing else."},
+    {"name": "Set CRM ID, Sequence Step, Status", "type": "n8n-nodes-base.set", "note": "Status-transition rule: NOT INTERESTED marks the CRM record COMPLETED immediately; a reply landing on the sequence's final step without an INTERESTED verdict also marks COMPLETED (the sequence ran its course without a positive signal); anything else stays IN PROGRESS. This is the idempotency-relevant part - a redelivered webhook for an already-COMPLETED lead just re-writes the same terminal state, not a flip-flop."},
+    {"name": "Wait -> Update CRM Contact", "type": "n8n-nodes-base.wait / n8n-nodes-base.httpRequest", "credentials": "{{CRM_API_CREDENTIAL}}", "note": "PATCHes the CRM contact with the sequence step, event type, status, and both raw email addresses from the event - so a human looking at the CRM record sees the full outbound-side context without needing to open the outbound platform at all."}
+  ],
+  "why_this_exists": "The outbound -> CRM direction. Closes the loop without a human having to notice a reply and manually update the CRM - the whole point of a bidirectional sync is that neither side requires a person to keep them consistent."
+}

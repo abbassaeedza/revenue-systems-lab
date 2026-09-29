@@ -9,7 +9,7 @@ Each module's README says which kind it is and what's been replaced.
 | Module | Pattern | Kind |
 |---|---|---|
 | [`hiring-signal-pipeline/`](hiring-signal-pipeline/) | 5-workflow real chain: discovery → daily ATS poll → staleness recheck → DB-side scoring → two-tier contact resolution | Real (sanitized), 5 workflows |
-| [`crm-outbound-sync/`](crm-outbound-sync/) | Visitor-intent webhook → cheap disqualify → dedup → enrich → LLM-assisted scoring → segment-routed outbound | Real (sanitized) |
+| [`crm-outbound-sync/`](crm-outbound-sync/) | 3-workflow bidirectional sync: visitor-intent scoring/routing, CRM-to-outbound lead creation, outbound-reply-to-CRM update | Real (sanitized), 3 workflows |
 | [`shared-error-handler/`](shared-error-handler/) | Standardized error capture → structured payload → alert dispatch, shared across every workflow in the pipeline | Real (sanitized) |
 | [`reply-classification-router/`](reply-classification-router/) | Account-wide webhook event filter + structured activity log | Real (sanitized) |
 | [`guest-post-prospecting-pipeline/`](guest-post-prospecting-pipeline/) | Search-discovery fan-out → two-tier email resolution → verify-then-send with dual-mailbox rotation | Real (sanitized) |
