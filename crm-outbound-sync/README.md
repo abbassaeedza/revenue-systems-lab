@@ -1,35 +1,31 @@
-# CRM <-> Outbound Sync
+# CRM Outbound Sync
 
-Pattern: de-anonymized visitor event -> cheap disqualify -> dedup -> enrich -> score (rule-based, with an LLM fallback for ambiguous cases) -> segment-routed outbound send -> reply event -> CRM state update. Bidirectional, idempotent in both directions.
+Pattern: CRM qualification event -> outbound send -> outbound reply event -> CRM state update. Bidirectional, idempotent in both directions. Two separately-deployed real n8n workflows, chained through shared state (the CRM contact ID, carried as a custom field on the outbound lead), not direct workflow-to-workflow calls.
 
-> Sanitized real workflows (three files: visitor-intent scoring/routing, CRM-to-outbound lead creation, outbound-reply-to-CRM update). Credentials, API keys, campaign IDs, and the ICP-classification prompt company name are placeholders.
+> Sanitized real workflows. Credentials, API keys, and campaign IDs are replaced with placeholders in both files. Node logic and status-transition rules are unchanged from production.
 
-Two invariants that mattered in production:
-
-1. **CRM -> outbound must not double-send.** A visitor already seen (deduped on a stable identity key, checked before any paid enrichment call) is a no-op on the next pass, not a duplicate enrichment spend or a duplicate outbound add.
-2. **Outbound -> CRM must not double-apply.** An already-applied reply/bounce event is a no-op, not a state flip-flop - this matters because a real event poll or webhook retry can redeliver the same event more than once.
+**Lead qualification itself happens upstream, in the CRM's own automation** (a separate workflow inside the CRM platform managing lead lifecycle states - e.g. a lead moves to "qualified," or to "lost - recheck in 60 days" if it doesn't convert). This module starts at the point the CRM fires a webhook because a lead just became qualified - it isn't the qualification logic itself.
 
 ## What it does
 
-1. **Cheap disqualify before any paid call.** Filters out visitors on career/job pages (job seekers) or whose company/industry text matches a competitor-category denylist - all on free, already-available signals, so the expensive enrichment step never wastes a lookup on structurally-never-going-to-convert traffic.
-2. **Dedup on identity, not session.** A repeat visitor just gets a last-seen timestamp bump and skips the entire scoring/enrichment path - no re-spend on someone already processed.
-3. **Enrich, then score.** A contact-enrichment API resolves firmographic + person data; a rule-based score combines URL-path intent (a pricing/contact page scores near-max, a blog/about page scores low) with a rule-based fit score (title seniority, company size, revenue, tag boosts). Only genuinely ambiguous cases (root-domain visit, or no industry data at all) fall through to an LLM classification call - the model is a fallback for real uncertainty, not the primary classifier.
-4. **Segment-routed send.** Qualified visitors route into one of several outbound campaigns by segment, not one generic sequence.
-5. **Reply-triggered CRM update.** An inbound reply gets classified (interested / not interested / out of office) and written back onto the CRM contact, advancing or completing its sequence status - closing the loop without a human having to notice and act on the reply manually.
+1. **`1-crm-qualified-lead-to-outbound.workflow.json`** - triggered by a CRM webhook on a qualified-lead event. Pulls the lead's contact details from the CRM, creates the corresponding lead in the outbound platform with the CRM contact ID carried through as a custom field, and marks the CRM contact synced. A contact with no email yet, or a deal with no associated contact yet, is logged to a side table rather than dropped - both are common, real states, not errors.
+2. **`2-outbound-reply-to-crm-update.workflow.json`** - triggered by an outbound-platform event webhook. On a genuine reply (not opens/clicks/bounces), classifies the reply body via a lightweight LLM call into INTERESTED / NOT INTERESTED / OUT OF OFFICE, then writes the sequence step, classification, and both raw email addresses back onto the matching CRM contact. A NOT INTERESTED verdict, or a reply landing on the final sequence step without an INTERESTED verdict, marks the CRM record COMPLETED; anything else stays IN PROGRESS.
 
-Files: steps 1-3 are the scoring/routing workflow; step 4's CRM-triggered half (a deal reaching a qualifying stage) is the CRM-to-outbound-lead workflow; step 5 is the outbound-reply-to-CRM workflow.
+## Two invariants that mattered in production
+
+1. **CRM -> outbound must not double-send.** A lead already marked synced is a no-op on a retried/redelivered webhook, not a duplicate outbound lead.
+2. **Outbound -> CRM must not double-apply.** An already-applied reply/bounce event is a no-op, not a state flip-flop - this matters because a real webhook can redeliver the same event more than once.
 
 ## Why it's built this way
 
-- **Rule-based scoring first, LLM only for ambiguous cases.** Most visitor events have enough signal (a specific page path, a filled-in industry field) to score deterministically and cheaply. Reserving the LLM call for the genuinely unclear minority keeps the common path fast and free of model-call latency/cost, while still handling the edge cases that a fixed rule set can't.
-- **Two independent scores (intent, fit), not one blended number.** Keeping them separate makes the routing decision auditable - a high-fit-low-intent visitor and a low-fit-high-intent visitor reach a threshold differently and can be routed differently, which a single combined score would hide.
-- **Never silently drop a qualified lead.** A visitor with no resolvable email doesn't get discarded - it's logged as a LinkedIn-only outreach candidate on a separate channel instead of disappearing.
-
-## Reliability
-
-- Every stage writes to a durable store before the next stage reads it - any stage can be re-run independently without reprocessing the whole flow.
-- The disqualify stage is deliberately conservative (biased toward letting a few noisy visitors through rather than risking a false-positive drop) - a real lead silently killed by an over-aggressive filter is a much harder failure mode to catch than one that costs a bit more enrichment budget.
+- **Two small, single-purpose workflows instead of one bidirectional monolith.** The CRM-to-outbound direction and the outbound-to-CRM direction have genuinely different triggers, payloads, and failure modes - keeping them separate means a change to reply-classification logic can't accidentally affect lead-creation logic, and vice versa.
+- **Never silently drop a lead.** No-contact and no-email states are logged to dedicated side tables specifically so nothing just vanishes - the same "never silently drop" posture used throughout the other modules in this repo.
+- **Status transitions are explicit terminal states**, not inferred - COMPLETED vs IN PROGRESS is set directly by rule, not left for a human to infer from raw event history.
 
 ## Tech stack
 
-n8n (orchestration) · a visitor de-anonymization webhook source · a contact-enrichment API · an LLM for ambiguous-case classification · a CRM/outbound sending platform
+n8n (orchestration) · a CRM's webhook + REST API · an LLM for reply classification · an outbound sending platform's REST API
+
+## What this proves
+
+A real bidirectional sync where each direction is its own small workflow with its own idempotency guarantee, triggered by real lifecycle events (qualification, reply) rather than a polling loop - and where every edge case (no contact, no email, redelivered event) has an explicit, non-dropping outcome.

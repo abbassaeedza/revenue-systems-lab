@@ -9,7 +9,8 @@ Each module's README says which kind it is and what's been replaced.
 | Module | Pattern | Kind |
 |---|---|---|
 | [`hiring-signal-pipeline/`](hiring-signal-pipeline/) | 5-workflow real chain: discovery → daily ATS poll → staleness recheck → DB-side scoring → two-tier contact resolution | Real (sanitized), 5 workflows |
-| [`crm-outbound-sync/`](crm-outbound-sync/) | 3-workflow bidirectional sync: visitor-intent scoring/routing, CRM-to-outbound lead creation, outbound-reply-to-CRM update | Real (sanitized), 3 workflows |
+| [`crm-outbound-sync/`](crm-outbound-sync/) | 2-workflow bidirectional sync: CRM-qualified-lead-to-outbound, outbound-reply-to-CRM update | Real (sanitized), 2 workflows |
+| [`rb2b-icp-router/`](rb2b-icp-router/) | De-anonymized visitor -> disqualify -> dedup -> enrich -> score (rule-based + LLM fallback) -> route | Real (sanitized) |
 | [`shared-error-handler/`](shared-error-handler/) | Standardized error capture → structured payload → alert dispatch, shared across every workflow in the pipeline | Real (sanitized) |
 | [`reply-classification-router/`](reply-classification-router/) | Account-wide webhook event filter + structured activity log | Real (sanitized) |
 | [`guest-post-prospecting-pipeline/`](guest-post-prospecting-pipeline/) | Search-discovery fan-out → two-tier email resolution → verify-then-send with dual-mailbox rotation | Real (sanitized) |
@@ -18,9 +19,9 @@ Each module's README says which kind it is and what's been replaced.
 
 Every module is self-contained and has its own README. The one demo module is runnable (`python3 waterfall.py`, stdlib-only, no install step) with a self-check proving the core invariant it exists to protect. The real-workflow modules are n8n exports meant to be read, not run standalone - import into a local n8n instance if you want to inspect a graph visually.
 
-## Why these seven
+## Why these eight
 
-Production automation systems that ingest external signals and turn them into qualified outbound contact tend to hit the same handful of problems regardless of stack: a multi-stage chain needs its expensive step structurally gated behind a cheap qualifying one (`hiring-signal-pipeline`), CRM and outbound-platform state drifts apart without an explicit sync contract (`crm-outbound-sync`), silent failures in a scheduled pipeline are worse than loud ones (`shared-error-handler`), noisy reply/event streams need filtering before they're useful (`reply-classification-router`), a multi-stage outreach system needs each stage's distinct failure mode handled on its own terms (`guest-post-prospecting-pipeline`), compliance has to be structural not incidental (`white-label-outreach-orchestration`), and enrichment/resolution providers are unreliable and shouldn't clobber good data with bad (`enrichment-waterfall`). Seven modules, one answer each.
+Production automation systems that ingest external signals and turn them into qualified outbound contact tend to hit the same handful of problems regardless of stack: a multi-stage chain needs its expensive step structurally gated behind a cheap qualifying one (`hiring-signal-pipeline`), CRM and outbound-platform state drifts apart without an explicit sync contract (`crm-outbound-sync`), a real-time visitor-scoring decision needs to be a small set of auditable stages rather than one opaque scoring blob (`rb2b-icp-router`), silent failures in a scheduled pipeline are worse than loud ones (`shared-error-handler`), noisy reply/event streams need filtering before they're useful (`reply-classification-router`), a multi-stage outreach system needs each stage's distinct failure mode handled on its own terms (`guest-post-prospecting-pipeline`), compliance has to be structural not incidental (`white-label-outreach-orchestration`), and enrichment/resolution providers are unreliable and shouldn't clobber good data with bad (`enrichment-waterfall`). Eight modules, one answer each.
 
 ## Scale note
 
