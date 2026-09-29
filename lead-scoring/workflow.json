@@ -1,0 +1,352 @@
+{
+  "name": "Scoring",
+  "active": true,
+  "triggerCount": 1,
+  "nodeCount": 8,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "errorWorkflow": "9fdiBgD7g0Ji6Mpk",
+    "binaryMode": "separate"
+  },
+  "description": "Computes hiring-source signals (stale_posting, multi_role, lone_engineer, contract_language) from job_postings and scores contacts (score/tier) per spec section 6. Pure DB computation, no external API cost.",
+  "connections": {
+    "Daily Schedule": {
+      "main": [
+        [
+          {
+            "node": "Compute Hiring Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Hiring Signals": {
+      "main": [
+        [
+          {
+            "node": "Score Hiring Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Hiring Contacts": {
+      "main": [
+        [
+          {
+            "node": "Get Tier Counts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Tier Counts": {
+      "main": [
+        [
+          {
+            "node": "Build Run Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Run Log": {
+      "main": [
+        [
+          {
+            "node": "Get Updated Source Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Updated Source Stats": {
+      "main": [
+        [
+          {
+            "node": "Update Source Stats Sheet Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Scoring (daily, hiring source only for now)\nPure DB computation via 2 SQL functions - no external API calls, no credit cost.\n1. compute_hiring_signals(): derives stale_posting/multi_role/lone_engineer/\n   contract_language from job_postings, idempotent (skips if an active\n   non-expired signal already exists), 30-day expiry on all 4 (not spec-stated,\n   user-confirmed default).\n2. score_hiring_contacts(): sums active signals + title_class/company_band\n   bonuses + role-email penalty, sets score/tier, suppresses competitors.\nVerified against 4 hand-calculated synthetic cases before going live - all\nmatched exactly (see project memory).\nOther 10 sources not scored yet - only hiring has signals/contacts to score.",
+        "height": 272,
+        "width": 624,
+        "color": 7
+      },
+      "id": "1ec2708b-787c-4278-bb7f-157b354a1a9f",
+      "name": "Sticky Note c8ae05d7",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        176,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "id": "096b67a1-7493-4d47-8f53-7e36eef01d14",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/rpc/compute_hiring_signals",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "options": {}
+      },
+      "id": "a51247bf-2ba0-4a42-a662-f0574200b228",
+      "name": "Compute Hiring Signals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        224,
+        96
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/rpc/score_hiring_contacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "options": {}
+      },
+      "id": "9116a6a5-d58b-4d61-b617-3b65bf8a1f96",
+      "name": "Score Hiring Contacts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        448,
+        96
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/contacts?select=tier&sources=cs.%7Bhiring%7D",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "options": {}
+      },
+      "id": "bba9ad64-4192-409a-9629-077abb321d16",
+      "name": "Get Tier Counts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        672,
+        96
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst total = items.length;\nconst tier1 = items.filter(function (i) { return i.json.tier === 1; }).length;\nconst tier2 = items.filter(function (i) { return i.json.tier === 2; }).length;\nconst tier3 = items.filter(function (i) { return i.json.tier === 3; }).length;\nconst month = new Date().toISOString().slice(0, 7) + '-01';\nconst dbPayload = { workflow_name: 'Scoring', run_started_at: new Date().toISOString(), run_finished_at: new Date().toISOString(), status: 'success', items_processed: { hiring_contacts_total: total, tier1: tier1, tier2: tier2, tier3: tier3 } };\nreturn [{ json: { dbPayloadJson: JSON.stringify(dbPayload), month: month } }];\n"
+      },
+      "id": "a677390d-31ec-4e06-9f5b-ae4bece87dc7",
+      "name": "Build Run Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ \"https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/source_stats?source=eq.hiring&month=eq.\" + $(\"Build Run Log\").first().json.month + \"&select=*\" }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "options": {}
+      },
+      "id": "79f5c64f-8299-4412-9b3f-254a7eeafd59",
+      "name": "Get Updated Source Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1120,
+        192
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1B6uaEu_jHawmZXvNx_Bx7RVP5vwml07CstWGdgsODmg"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Source Stats"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "source",
+            "month"
+          ],
+          "value": {
+            "source": "={{ $json.source }}",
+            "month": "={{ $json.month }}",
+            "contacts_sourced": "={{ $json.contacts_sourced }}",
+            "emails_found": "={{ $json.emails_found }}",
+            "emails_sent": "={{ $json.emails_sent }}",
+            "replies": "={{ $json.replies }}",
+            "positive_replies": "={{ $json.positive_replies }}",
+            "bounces": "={{ $json.bounces }}",
+            "complaints": "={{ $json.complaints }}"
+          },
+          "schema": [
+            {
+              "id": "source",
+              "displayName": "source",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "month",
+              "displayName": "month",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contacts_sourced",
+              "displayName": "contacts_sourced",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "emails_found",
+              "displayName": "emails_found",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "emails_sent",
+              "displayName": "emails_sent",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "replies",
+              "displayName": "replies",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "positive_replies",
+              "displayName": "positive_replies",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "bounces",
+              "displayName": "bounces",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "complaints",
+              "displayName": "complaints",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "12db54b7-f4e8-4549-808f-1aee198f1c11",
+      "name": "Update Source Stats Sheet Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1344,
+        192
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    }
+  ]
+}

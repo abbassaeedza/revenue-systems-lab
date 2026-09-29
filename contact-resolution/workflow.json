@@ -1,0 +1,1261 @@
+{
+  "name": "Find Hiring Contacts",
+  "active": true,
+  "triggerCount": 1,
+  "nodeCount": 34,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "errorWorkflow": "9fdiBgD7g0Ji6Mpk"
+  },
+  "description": "Closes the hiring-source name gap: for companies with an open hiring signal and no contact yet, uses Apollo people-search (domain+title) then reveal to create the contacts row (name, title, email). Capped 50/run to bound Apollo credit spend.",
+  "connections": {
+    "Get Uncontacted Hiring Companies": {
+      "main": [
+        [
+          {
+            "node": "Process Each Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Run Log": {
+      "main": [
+        [
+          {
+            "node": "Get New Contacts With Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get New Contacts With Email": {
+      "main": [
+        [
+          {
+            "node": "Count Emails Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Count Emails Found": {
+      "main": [
+        [
+          {
+            "node": "Increment Source Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Source Stats": {
+      "main": [
+        [
+          {
+            "node": "Get Updated Source Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Updated Source Stats": {
+      "main": [
+        [
+          {
+            "node": "Update Source Stats Sheet Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo Search Person": {
+      "main": [
+        [
+          {
+            "node": "Check Has Match",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "End Iteration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Has Match": {
+      "main": [
+        [
+          {
+            "node": "Has Match?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Match?": {
+      "main": [
+        [
+          {
+            "node": "Apollo Reveal Person",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Role Title List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo Reveal Person": {
+      "main": [
+        [
+          {
+            "node": "Build Contact Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "End Iteration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Contact": {
+      "main": [
+        [
+          {
+            "node": "End Iteration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "End Iteration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "End Iteration": {
+      "main": [
+        [
+          {
+            "node": "Process Each Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Each Company": {
+      "main": [
+        [
+          {
+            "node": "Build Run Log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apollo Search Person",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Schedule": {
+      "main": [
+        [
+          {
+            "node": "Capture Start Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capture Start Time": {
+      "main": [
+        [
+          {
+            "node": "Get Uncontacted Hiring Companies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LM Role Finder": {
+      "main": [
+        [
+          {
+            "node": "LM Parse Role",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LM Parse Role",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LM Parse Role": {
+      "main": [
+        [
+          {
+            "node": "LM Role Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LM Role Found?": {
+      "main": [
+        [
+          {
+            "node": "LM Email Finder B",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "End Iteration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LM Email Finder B": {
+      "main": [
+        [
+          {
+            "node": "LM Parse Email B",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LM Parse Email B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LM Parse Email B": {
+      "main": [
+        [
+          {
+            "node": "LM Email Found B?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LM Email Found B?": {
+      "main": [
+        [
+          {
+            "node": "Build Contact From LM B",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Contact No Email B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Contact From LM B": {
+      "main": [
+        [
+          {
+            "node": "Insert Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Contact No Email B": {
+      "main": [
+        [
+          {
+            "node": "Insert Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Contact Payload": {
+      "main": [
+        [
+          {
+            "node": "Has Email From Apollo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Email From Apollo?": {
+      "main": [
+        [
+          {
+            "node": "Insert Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prep LM From Apollo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep LM From Apollo": {
+      "main": [
+        [
+          {
+            "node": "LM Email Finder A",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LM Email Finder A": {
+      "main": [
+        [
+          {
+            "node": "LM Parse Email A",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LM Parse Email A",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LM Parse Email A": {
+      "main": [
+        [
+          {
+            "node": "LM Email Found A?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LM Email Found A?": {
+      "main": [
+        [
+          {
+            "node": "Build Contact From LM A",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallback To Apollo Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Contact From LM A": {
+      "main": [
+        [
+          {
+            "node": "Insert Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fallback To Apollo Contact": {
+      "main": [
+        [
+          {
+            "node": "Insert Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Role Title List": {
+      "main": [
+        [
+          {
+            "node": "LM Role Finder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "id": "9ec99232-ca7b-43e4-a72e-8ac1a687335f",
+      "name": "Sticky Note 036097d6",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        944,
+        560
+      ],
+      "parameters": {
+        "content": "## Find Hiring Contacts (daily, capped 50/run)\nFor companies with an open hiring signal + no contact yet + not suppressed:\nApollo search (domain+title) -> Apollo reveal -> creates the contacts row.\nCap exists to bound Apollo credit spend (2 calls/contact, 4,000/mo budget) -\nponytail: raise the cap or split into more runs/day if the backlog grows\nfaster than 50/day clears it.\nGated on score >= 35 (2026-09-22): get_uncontacted_hiring_companies now computes\na pre-contact company_score (active signal points + employee_band bonus) and\nonly returns companies clearing that bar, best-scored first -- matches spec\nsection 7's stated trigger. Doesn't include title_class/role-email penalty\n(unknowable before a contact exists), so this is a proxy, not the exact\npost-contact score() formula.",
+        "color": 6
+      }
+    },
+    {
+      "id": "c665ed8e-4b97-4ab5-819a-b14f58c1bd07",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        512
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "66771081-921b-483c-81dc-799ed75bbd3a",
+      "name": "Get Uncontacted Hiring Companies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        224,
+        512
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/rpc/get_uncontacted_hiring_companies",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "{\"p_limit\": 200, \"p_min_score\": 15}"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "a29dc3c6-337e-49e4-9ad5-642b1a56d83c",
+      "name": "Build Run Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        96
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "\nconst total = items.length;\nconst nowIso = new Date().toISOString();\nconst runStartedAt = $('Capture Start Time').first().json.runStartedAt;\nconst month = new Date().toISOString().slice(0, 7) + '-01';\nconst dbPayload = { workflow_name: 'Find Hiring Contacts', run_started_at: nowIso, run_finished_at: nowIso, status: 'success', items_processed: { companies_checked: total } };\nreturn [{ json: { dbPayloadJson: JSON.stringify(dbPayload), month: month, total: total, runStartedAt: runStartedAt } }];\n"
+      }
+    },
+    {
+      "id": "1af487ce-c7f0-4b0f-9853-197d7f80d98b",
+      "name": "Get New Contacts With Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        896,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ \"https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/contacts?sources=cs.%7Bhiring%7D&email_status=eq.pending&enriched_at=gte.\" + $json.runStartedAt + \"&select=id\" }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "62ddba6d-4049-4833-b950-87adc015b374",
+      "name": "Count Emails Found",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "\nconst emailsFound = items.filter(function (i) { return i.json && i.json.id; }).length;\nconst month = $('Build Run Log').first().json.month;\nconst statsPayload = { p_source: 'hiring', p_month: month, p_emails_found: emailsFound };\nreturn [{ json: { statsPayloadJson: JSON.stringify(statsPayload), month: month } }];\n"
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "ab1c2ed1-af6f-467d-8353-93fe4826e955",
+      "name": "Increment Source Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1344,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/rpc/increment_source_stats",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.statsPayloadJson }}"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "37fa8429-b7e0-4036-a3d1-8c7c70ec8cc0",
+      "name": "Get Updated Source Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1568,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ \"https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/source_stats?source=eq.hiring&month=eq.\" + $(\"Count Emails Found\").first().json.month + \"&select=*\" }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "10b53c02-97da-429c-b5e8-eab1a45d4492",
+      "name": "Update Source Stats Sheet Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1792,
+        0
+      ],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1B6uaEu_jHawmZXvNx_Bx7RVP5vwml07CstWGdgsODmg"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Source Stats"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "source",
+            "month"
+          ],
+          "value": {
+            "source": "={{ $json.source }}",
+            "month": "={{ $json.month }}",
+            "contacts_sourced": "={{ $json.contacts_sourced }}",
+            "emails_found": "={{ $json.emails_found }}",
+            "emails_sent": "={{ $json.emails_sent }}",
+            "replies": "={{ $json.replies }}",
+            "positive_replies": "={{ $json.positive_replies }}",
+            "bounces": "={{ $json.bounces }}",
+            "complaints": "={{ $json.complaints }}"
+          },
+          "schema": [
+            {
+              "id": "source",
+              "displayName": "source",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "month",
+              "displayName": "month",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contacts_sourced",
+              "displayName": "contacts_sourced",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "emails_found",
+              "displayName": "emails_found",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "emails_sent",
+              "displayName": "emails_sent",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "replies",
+              "displayName": "replies",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "positive_replies",
+              "displayName": "positive_replies",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "bounces",
+              "displayName": "bounces",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "complaints",
+              "displayName": "complaints",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "cc07a32c-2dd5-4b06-a3e3-c806a5755410",
+      "name": "Apollo Search Person",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        672,
+        512
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apollo.io/api/v1/mixed_people/api_search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { q_organization_domains_list: [$json.domain], person_titles: [\"Founder\",\"Co-Founder\",\"CEO\",\"Owner\",\"President\",\"CTO\",\"Head of Product\",\"Studio Head\"], page: 1, per_page: 3 } }}"
+      },
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "636d7462-7569-4aa5-b240-22daf2672778",
+      "name": "Check Has Match",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        432
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "\nconst registryRow = $('Get Uncontacted Hiring Companies').item.json;\nconst raw = items[0].json;\nconst people = raw.people || [];\nconst hasMatch = people.length > 0;\nreturn [{ json: {\n  hasMatch,\n  personId: hasMatch ? people[0].id : null,\n  companyId: registryRow.company_id,\n  domain: registryRow.domain\n} }];\n"
+      }
+    },
+    {
+      "id": "a8230947-52d9-4cce-a14a-3031a237a8f2",
+      "name": "Has Match?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        432
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasMatch }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "62a1682a-1045-419b-ac98-0f18a8e3992e",
+      "name": "Apollo Reveal Person",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1344,
+        368
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apollo.io/api/v1/people/match",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { id: $json.personId, reveal_personal_emails: false } }}"
+      },
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "31f21416-6d66-40e5-89fa-820af229a04f",
+      "name": "Build Contact Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        288
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "\nconst matchData = $('Check Has Match').first().json;\nconst raw = items[0].json;\nconst p = raw.person || {};\n\nconst PRIMARY_TITLES = ['founder', 'co-founder', 'ceo', 'chief executive officer', 'owner', 'president'];\nfunction classifyTitle(title) {\n  if (!title) return 'reject';\n  const t = title.toLowerCase();\n  if (PRIMARY_TITLES.some(function (k) { return t.indexOf(k) !== -1; })) return 'primary';\n  return 'secondary';\n}\n\nconst hasEmail = !!p.email;\nconst contact = {\n  company_id: matchData.companyId,\n  first_name: p.first_name || null,\n  last_name: p.last_name || null,\n  full_name: p.name || null,\n  title: p.title || null,\n  title_class: classifyTitle(p.title),\n  linkedin_url: p.linkedin_url || null,\n  sources: ['hiring'],\n  enriched_at: new Date().toISOString()\n};\nif (hasEmail) {\n  contact.email = p.email.toLowerCase().trim();\n  contact.email_status = 'pending';\n} else {\n  contact.email_status = 'not_found';\n}\n\nreturn [{ json: { contactPayloadJson: JSON.stringify(contact), foundEmail: hasEmail, foundContact: !!p.name } }];\n"
+      }
+    },
+    {
+      "id": "790278c6-33be-4fee-ac7a-90c1ee6f4c07",
+      "name": "Insert Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1792,
+        288
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/contacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.contactPayloadJson }}"
+      },
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "7b6e8e93-99d5-44d4-bdf9-f91135a45f29",
+      "name": "End Iteration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        560
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "\nreturn [{ json: {} }];\n"
+      }
+    },
+    {
+      "id": "9222a0ee-9fae-4c2d-ad8b-18d65d3f0d3c",
+      "name": "Process Each Company",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        448,
+        512
+      ],
+      "parameters": {
+        "batchSize": 1
+      }
+    },
+    {
+      "id": "7d39f4db-2ac2-4059-959b-4d57603ea537",
+      "name": "Capture Start Time",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        512
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "return [{ json: { runStartedAt: new Date().toISOString() } }];"
+      }
+    },
+    {
+      "id": "add40f8f-ddad-4faa-9c46-a799922045d3",
+      "name": "LM Role Finder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1120,
+        700
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.leadmagic.io/v1/people/role-finder",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { company_domain: $json.domain, job_title: $json.roleTitleQuery } }}"
+      },
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "7a7d2d01-8b20-4b6d-81de-168121704a15",
+      "name": "LM Parse Role",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        700
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "var matchData = $('Check Has Match').first().json;\nvar titleQueries = $('Build Role Title List').all();\nvar found = false;\nvar fullName = null;\nvar roleTitle = null;\nfor (var i = 0; i < items.length; i++) {\n  var raw = items[i].json || {};\n  if (raw.name) {\n    found = true;\n    fullName = raw.name;\n    roleTitle = (titleQueries[i] && titleQueries[i].json.roleTitleQuery) || null;\n    break;\n  }\n}\nreturn [{ json: { found: found, fullName: fullName, roleTitle: roleTitle, domain: matchData.domain, companyId: matchData.companyId } }];"
+      }
+    },
+    {
+      "id": "224e44ab-13c6-485e-9731-6f1b1a3753ca",
+      "name": "LM Role Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1568,
+        700
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.found }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "fdde2e19-f477-4045-9004-7459e0b69571",
+      "name": "LM Email Finder B",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1792,
+        700
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.leadmagic.io/v1/people/email-finder",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { full_name: $json.fullName, domain: $json.domain } }}"
+      },
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "769d1b7d-b60c-4c2a-9730-09fa234298b7",
+      "name": "LM Parse Email B",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        700
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const ctx = $('LM Parse Role').first().json;\nconst raw = items[0].json || {};\nconst hasEmail = !!raw.email;\nreturn [{ json: { hasEmail: hasEmail, email: raw.email || null, fullName: ctx.fullName, roleTitle: ctx.roleTitle, domain: ctx.domain, companyId: ctx.companyId } }];"
+      }
+    },
+    {
+      "id": "2ef70b42-6e47-46ca-af0c-2a8b9c475623",
+      "name": "LM Email Found B?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2240,
+        700
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasEmail }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "513f36ba-5073-41b1-81e8-0c78ac5cad77",
+      "name": "Build Contact From LM B",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        650
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const d = items[0].json;\nconst PRIMARY_TITLES = ['founder', 'co-founder', 'ceo', 'chief executive officer', 'owner', 'president'];\nfunction classifyTitle(t) { if (!t) return 'secondary'; var low = t.toLowerCase(); if (PRIMARY_TITLES.some(function(k){return low.indexOf(k)!==-1;})) return 'primary'; return 'secondary'; }\nconst parts = (d.fullName || '').split(' ');\nconst contact = { company_id: d.companyId, first_name: parts[0] || null, full_name: d.fullName, title: d.roleTitle || null, title_class: classifyTitle(d.roleTitle), email: d.email.toLowerCase().trim(), email_status: 'pending', sources: ['hiring'], enriched_at: new Date().toISOString() };\nreturn [{ json: { contactPayloadJson: JSON.stringify(contact) } }];"
+      }
+    },
+    {
+      "id": "e1c2455d-6b5b-422e-b5b0-44eec53f0cd8",
+      "name": "Build Contact No Email B",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        750
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const d = items[0].json;\nconst PRIMARY_TITLES = ['founder', 'co-founder', 'ceo', 'chief executive officer', 'owner', 'president'];\nfunction classifyTitle(t) { if (!t) return 'secondary'; var low = t.toLowerCase(); if (PRIMARY_TITLES.some(function(k){return low.indexOf(k)!==-1;})) return 'primary'; return 'secondary'; }\nconst parts = (d.fullName || '').split(' ');\nconst contact = { company_id: d.companyId, first_name: parts[0] || null, full_name: d.fullName, title: d.roleTitle || null, title_class: classifyTitle(d.roleTitle), email_status: 'not_found', sources: ['hiring'], enriched_at: new Date().toISOString() };\nreturn [{ json: { contactPayloadJson: JSON.stringify(contact) } }];"
+      }
+    },
+    {
+      "id": "f2fe41d3-d865-4f3e-8d21-6763ff2fe49f",
+      "name": "Has Email From Apollo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1792,
+        150
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.foundEmail }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "c362e37f-28dd-41c4-9098-2c7d71b82632",
+      "name": "Prep LM From Apollo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        150
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const matchData = $('Check Has Match').first().json;\nconst raw = $('Apollo Reveal Person').first().json;\nconst p = raw.person || {};\nconst built = $('Build Contact Payload').first().json;\nreturn [{ json: { fullName: p.name || null, domain: matchData.domain, companyId: matchData.companyId, apolloContactPayloadJson: built.contactPayloadJson } }];"
+      }
+    },
+    {
+      "id": "94c2f584-f999-438f-88e3-fae7ded384a4",
+      "name": "LM Email Finder A",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2240,
+        150
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.leadmagic.io/v1/people/email-finder",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { full_name: $json.fullName, domain: $json.domain } }}"
+      },
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "c9e399c0-07cc-4834-9e99-97a8bee1e627",
+      "name": "LM Parse Email A",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        150
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const ctx = $('Prep LM From Apollo').first().json;\nconst raw = items[0].json || {};\nconst hasEmail = !!raw.email;\nreturn [{ json: { hasEmail: hasEmail, email: raw.email || null, companyId: ctx.companyId, apolloContactPayloadJson: ctx.apolloContactPayloadJson } }];"
+      }
+    },
+    {
+      "id": "cf90f7bd-de90-481b-a1b3-0bed5f30cddc",
+      "name": "LM Email Found A?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2688,
+        150
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasEmail }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "cc62df61-8366-4633-b229-80c1f5290fe0",
+      "name": "Build Contact From LM A",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2912,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const d = items[0].json;\nconst original = JSON.parse(d.apolloContactPayloadJson);\noriginal.email = d.email.toLowerCase().trim();\noriginal.email_status = 'pending';\nreturn [{ json: { contactPayloadJson: JSON.stringify(original) } }];"
+      }
+    },
+    {
+      "id": "4c8ddc54-cf5b-41d3-bedc-3bd078aa1800",
+      "name": "Fallback To Apollo Contact",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2912,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const d = items[0].json;\nreturn [{ json: { contactPayloadJson: d.apolloContactPayloadJson } }];"
+      }
+    },
+    {
+      "id": "n-buildtitlelist",
+      "name": "Build Role Title List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        700
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "var TITLES = ['Founder','Co-Founder','CEO','Owner','President','CTO','Head of Product','Studio Head'];\nvar ctx = $('Check Has Match').first().json;\nvar out = [];\nfor (var i = 0; i < TITLES.length; i++) {\n  out.push({ json: { domain: ctx.domain, companyId: ctx.companyId, roleTitleQuery: TITLES[i] } });\n}\nreturn out;"
+      }
+    }
+  ]
+}

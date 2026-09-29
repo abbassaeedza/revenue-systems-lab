@@ -1,0 +1,615 @@
+{
+  "name": "TheirStack Discovery",
+  "active": true,
+  "triggerCount": 1,
+  "nodeCount": 14,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "binaryMode": "separate",
+    "errorWorkflow": "9fdiBgD7g0Ji6Mpk"
+  },
+  "description": "Weekly TheirStack job-signal discovery for an outbound lead pipeline hiring-signal source. Upserts companies, job_postings, ats_registry; logs contacts_sourced to source_stats.",
+  "connections": {
+    "Weekly Schedule": {
+      "main": [
+        [
+          {
+            "node": "Search TheirStack Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search TheirStack Jobs": {
+      "main": [
+        [
+          {
+            "node": "Flatten Job Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flatten Job Pages": {
+      "main": [
+        [
+          {
+            "node": "Normalize And Extract ATS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize And Extract ATS": {
+      "main": [
+        [
+          {
+            "node": "Upsert Company",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Compute Discovery Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Company": {
+      "main": [
+        [
+          {
+            "node": "Build Job Posting Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Job Posting Payload": {
+      "main": [
+        [
+          {
+            "node": "Upsert Job Posting",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Has ATS Slug?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has ATS Slug?": {
+      "main": [
+        [
+          {
+            "node": "Upsert ATS Registry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Discovery Stats": {
+      "main": [
+        [
+          {
+            "node": "Increment Source Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Source Stats": {
+      "main": [
+        [
+          {
+            "node": "Get Updated Source Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Updated Source Stats": {
+      "main": [
+        [
+          {
+            "node": "Update Source Stats Sheet Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## TheirStack Discovery (weekly)\nSources hiring signals -> companies + job_postings + ats_registry.\nATS slug extracted best-effort (~11-13% of results in testing, see project memory) -\nthis is a real ceiling from job-market data distribution, not an extraction bug.\nScoring/signals (stale_posting, multi_role, lone_engineer, contract_language) are\ncomputed by a separate downstream Scoring workflow, not here.",
+        "height": 288,
+        "width": 640,
+        "color": 4
+      },
+      "id": "a0260005-89f0-49bf-822f-ef4aa793cdc2",
+      "name": "Sticky Note 88e361b6",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        80,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 6
+            }
+          ]
+        }
+      },
+      "id": "6749a689-47ba-4484-a195-487081e144d3",
+      "name": "Weekly Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.theirstack.com/v1/jobs/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"limit\": 500, \"page\": 0, \"posted_at_max_age_days\": 14, \"job_country_code_or\": [\"US\"], \"company_country_code_or\": [\"US\"], \"max_employee_count\": 200, \"job_title_or\": [\"Software Engineer\", \"Software Developer\", \"Mobile Developer\", \"Mobile Engineer\", \"iOS Developer\", \"iOS Engineer\", \"Android Developer\", \"Android Engineer\", \"React Native Developer\", \"Flutter Developer\", \"Unity Developer\", \"Unity Engineer\", \"Game Developer\", \"Game Engineer\", \"Full Stack Developer\", \"Full Stack Engineer\", \"Backend Engineer\", \"Backend Developer\", \"Frontend Engineer\", \"Frontend Developer\", \"Application Developer\", \"Web Developer\", \"Product Engineer\", \"Engineering Manager\", \"Technical Lead\"], \"job_description_pattern_or\": [\"(?i)React Native\", \"(?i)Flutter\", \"(?i)Unity\", \"(?i)Unreal\", \"(?i)Swift\", \"(?i)Kotlin\", \"(?i)iOS\", \"(?i)Android\", \"(?i)mobile app\"]}",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "type": "body",
+                    "name": "page",
+                    "value": "={{ $pageCount }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.data.length === 0 }}",
+              "limitPagesFetched": true,
+              "maxRequests": 20,
+              "requestInterval": 300
+            }
+          }
+        }
+      },
+      "id": "6717a926-c9d6-4db8-86ff-64a6a8a651c7",
+      "name": "Search TheirStack Jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        224,
+        192
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.flatMap(item => (item.json.data || []).map(job => ({ json: job })));"
+      },
+      "id": "87cdc943-09c7-4de6-b05a-e146fe88c30b",
+      "name": "Flatten Job Pages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nfunction normalizeDomain(d) {\n  if (!d) return null;\n  let s = String(d).toLowerCase().trim();\n  s = s.replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split('/')[0];\n  return s || null;\n}\nfunction employeeBand(n) {\n  if (n === null || n === undefined) return null;\n  if (n <= 10) return '1-10';\n  if (n <= 50) return '11-50';\n  if (n <= 200) return '51-200';\n  if (n <= 500) return '201-500';\n  return '500+';\n}\nfunction extractAts(urls) {\n  for (const raw of urls) {\n    if (!raw) continue;\n    let m;\n    if (m = raw.match(/(?:job-boards|boards)\\.greenhouse\\.io\\/([^\\/?]+)/i)) {\n      return { ats: 'greenhouse', slug: m[1], boardUrl: 'https://boards-api.greenhouse.io/v1/boards/' + m[1] + '/jobs?content=true' };\n    }\n    if (m = raw.match(/jobs\\.lever\\.co\\/([^\\/?]+)/i)) {\n      return { ats: 'lever', slug: m[1], boardUrl: 'https://api.lever.co/v0/postings/' + m[1] };\n    }\n    if (m = raw.match(/jobs\\.ashbyhq\\.com\\/([^\\/?]+)/i)) {\n      return { ats: 'ashby', slug: m[1], boardUrl: 'https://api.ashbyhq.com/posting-api/job-board/' + m[1] + '?includeCompensation=true' };\n    }\n    if (m = raw.match(/^https?:\\/\\/([^.\\/]+)\\.recruitee\\.com/i)) {\n      return { ats: 'recruitee', slug: m[1], boardUrl: 'https://' + m[1] + '.recruitee.com/api/offers' };\n    }\n    if (m = raw.match(/jobs\\.workable\\.com\\/view\\/[^\\/]+\\/.*-at-([a-z0-9-]+)(?:[?].*)?$/i)) {\n      return { ats: 'workable', slug: m[1], boardUrl: 'https://apply.workable.com/api/v1/widget/accounts/' + m[1] + '?details=true' };\n    }\n  }\n  return { ats: null, slug: null, boardUrl: null };\n}\nconst TECH_KEYWORDS = ['React Native', 'Flutter', 'Unity', 'Unreal', 'Swift', 'Kotlin', 'iOS', 'Android', 'mobile app'];\nfunction matchedTech(desc) {\n  if (!desc) return [];\n  return TECH_KEYWORDS.filter(k => new RegExp(k.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'), 'i').test(desc));\n}\n\nconst out = [];\nfor (const item of items) {\n  const job = item.json;\n  const domain = normalizeDomain(job.company_domain);\n  if (!domain) continue;\n  const co = job.company_object || {};\n  const atsInfo = extractAts([job.final_url, job.url, job.source_url]);\n  const companyPayload = { domain, country: job.country_code || 'US' };\n  if (co.name) companyPayload.name = co.name;\n  if (co.employee_count !== undefined && co.employee_count !== null) {\n    companyPayload.employee_count = co.employee_count;\n    companyPayload.employee_band = employeeBand(co.employee_count);\n  }\n  if (co.industry) companyPayload.industry = co.industry;\n  if (co.linkedin_url) companyPayload.linkedin_url = co.linkedin_url;\n  companyPayload.last_seen = new Date().toISOString();\n\n  out.push({ json: {\n    domain,\n    companyPayloadJson: JSON.stringify(companyPayload),\n    jobTitle: job.job_title || null,\n    location: job.short_location || job.location || null,\n    description: job.description || null,\n    matchedTech: matchedTech(job.description),\n    externalId: String(job.id),\n    ats: atsInfo.ats || 'theirstack',\n    atsSlug: atsInfo.slug,\n    boardUrl: atsInfo.boardUrl,\n    hasAtsSlug: !!atsInfo.slug\n  }});\n}\nreturn out;\n"
+      },
+      "id": "3fb78e2c-8ad5-4e04-af15-5d3948ce690c",
+      "name": "Normalize And Extract ATS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/companies",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "on_conflict",
+              "value": "domain"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.companyPayloadJson }}",
+        "options": {}
+      },
+      "id": "6782e161-0833-467e-8bc9-36ac5272a9e8",
+      "name": "Upsert Company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        896,
+        96
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst norm = $('Normalize And Extract ATS').all();\nconst comp = $('Upsert Company').all();\nconst out = [];\nfor (let i = 0; i < norm.length; i++) {\n  const n = norm[i].json;\n  const companyId = (comp[i] && comp[i].json && comp[i].json.id) ? comp[i].json.id : null;\n  const today = new Date().toISOString().slice(0, 10);\n  const jobPosting = {\n    company_id: companyId,\n    ats: n.ats,\n    external_id: n.externalId,\n    title: n.jobTitle,\n    location: n.location,\n    description: n.description,\n    matched_tech: n.matchedTech,\n    last_seen: today\n  };\n  const atsPayload = n.hasAtsSlug ? {\n    company_id: companyId,\n    ats: n.ats,\n    slug: n.atsSlug,\n    board_url: n.boardUrl,\n    active: true\n  } : null;\n  out.push({ json: {\n    jobPostingPayloadJson: JSON.stringify(jobPosting),\n    atsPayloadJson: atsPayload ? JSON.stringify(atsPayload) : null,\n    hasAtsSlug: n.hasAtsSlug\n  }});\n}\nreturn out;\n"
+      },
+      "id": "517f11f8-e5a1-4af4-bd37-b9a714e598e3",
+      "name": "Build Job Posting Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/job_postings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "on_conflict",
+              "value": "ats,external_id"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.jobPostingPayloadJson }}",
+        "options": {}
+      },
+      "id": "69881ec4-1141-4973-8787-cd5911fd142e",
+      "name": "Upsert Job Posting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1344,
+        0
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasAtsSlug }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "84d2ee3d-c64c-46d9-9fb6-e476ac78afce",
+      "name": "Has ATS Slug?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1344,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/ats_registry",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "on_conflict",
+              "value": "ats,slug"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.atsPayloadJson }}",
+        "options": {}
+      },
+      "id": "3a80138f-936c-40b0-ad76-4e44cc256d05",
+      "name": "Upsert ATS Registry",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1568,
+        160
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst total = items.length;\nconst atsMatched = items.filter(i => i.json.hasAtsSlug).length;\nconst rate = total > 0 ? Math.round((atsMatched / total) * 1000) / 10 : 0;\nconst month = new Date().toISOString().slice(0, 7) + '-01';\nconst statsPayload = { p_source: 'hiring', p_month: month, p_contacts_sourced: total };\nreturn [{ json: { total, atsMatched, rate, month, statsPayloadJson: JSON.stringify(statsPayload) } }];\n"
+      },
+      "id": "d9819da4-c024-4469-87fc-85bda5eed08c",
+      "name": "Compute Discovery Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/rpc/increment_source_stats",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.statsPayloadJson }}",
+        "options": {}
+      },
+      "id": "001d439c-d10f-4cd9-abcd-bec6d7c93fd8",
+      "name": "Increment Source Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1120,
+        288
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/source_stats?source=eq.hiring&month=eq.{{ $(\"Compute Discovery Stats\").first().json.month }}&select=*",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "options": {}
+      },
+      "id": "91e8a709-27cc-4fc2-904f-d195ca963e9d",
+      "name": "Get Updated Source Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1344,
+        368
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1B6uaEu_jHawmZXvNx_Bx7RVP5vwml07CstWGdgsODmg"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Source Stats"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "source",
+            "month"
+          ],
+          "value": {
+            "source": "={{ $json.source }}",
+            "month": "={{ $json.month }}",
+            "contacts_sourced": "={{ $json.contacts_sourced }}",
+            "emails_found": "={{ $json.emails_found }}",
+            "emails_sent": "={{ $json.emails_sent }}",
+            "replies": "={{ $json.replies }}",
+            "positive_replies": "={{ $json.positive_replies }}",
+            "bounces": "={{ $json.bounces }}",
+            "complaints": "={{ $json.complaints }}"
+          },
+          "schema": [
+            {
+              "id": "source",
+              "displayName": "source",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "month",
+              "displayName": "month",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contacts_sourced",
+              "displayName": "contacts_sourced",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "emails_found",
+              "displayName": "emails_found",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "emails_sent",
+              "displayName": "emails_sent",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "replies",
+              "displayName": "replies",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "positive_replies",
+              "displayName": "positive_replies",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "bounces",
+              "displayName": "bounces",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "complaints",
+              "displayName": "complaints",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3e661517-6a1e-450b-8133-fc33bdd52493",
+      "name": "Update Source Stats Sheet Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1584,
+        368
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,262 @@
+{
+  "name": "Smartlead Reply Tracking",
+  "active": true,
+  "triggerCount": 1,
+  "nodeCount": 5,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "binaryMode": "separate"
+  },
+  "connections": {
+    "Smartlead Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Event": {
+      "main": [
+        [
+          {
+            "node": "Should Log?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Log?": {
+      "main": [
+        [
+          {
+            "node": "Log Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "smartlead-events-d3a0e6277e08a87d96f2a531dbd43de7",
+        "options": {}
+      },
+      "id": "309eefd6-300b-463f-ac99-ccbb123d580f",
+      "name": "Smartlead Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "\nconst body = $json.body || {};\nconst eventType = body.event_type || body.event || null;\n\n// Fixed 2026-09-23 against a REAL LEAD_CATEGORY_UPDATED payload (webhook id 875223,\n// event_id 81c48d4a-1670-4ef0-a89a-8a553f60ab7a) - the earlier field paths (body.lead.email,\n// body.category.name) were guesses from Smartlead's own docs and were WRONG. Real shape:\n// lead_email and campaign_id are top-level (those were already right); name/company info is\n// under body.lead_data (not body.lead); category arrives BOTH as a plain string at\n// body.category AND as an object at body.lead_data.category ({name, sentiment_type}) -\n// prefer the object form for sentiment_type, fall back to the plain string. event_timestamp\n// is the real field name for when Smartlead says the event happened (there is no top-level\n// \"timestamp\") - preferred over server-arrival time when present.\nconst eventTime = body.event_timestamp ? new Date(body.event_timestamp) : new Date();\nconst date = eventTime.toISOString().slice(0, 10);\nconst month = date.slice(0, 7);\nconst leadData = body.lead_data || {};\nconst categoryObj = leadData.category || {};\nconst categoryName = categoryObj.name || body.category || null;\nconst sentimentType = categoryObj.sentiment_type || null;\n\nconst TRACKED = ['EMAIL_SENT', 'EMAIL_REPLIED', 'EMAIL_BOUNCED', 'LEAD_CATEGORY_UPDATED'];\nconst skip = TRACKED.indexOf(eventType) === -1;\n\nreturn [{ json: {\n  skip: skip,\n  timestamp: eventTime.toISOString(),\n  date: date,\n  month: month,\n  event_type: eventType,\n  campaign_id: body.campaign_id || null,\n  lead_email: body.lead_email || leadData.email || null,\n  lead_first_name: leadData.first_name || null,\n  lead_last_name: leadData.last_name || null,\n  category_name: categoryName,\n  sentiment_type: sentimentType\n} }];\n"
+      },
+      "id": "4a64d791-5858-434d-bcc9-1762c44bc0bd",
+      "name": "Parse Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.skip }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f9cbd7e3-d5a1-4381-ab67-1737a77da671",
+      "name": "Should Log?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10MLR1GhjmhhZZsQeTFrMRQayAI5fbz1vMoYGDCrgwLw"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Sent Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "date": "={{ $json.date }}",
+            "month": "={{ $json.month }}",
+            "event_type": "={{ $json.event_type }}",
+            "campaign_id": "={{ $json.campaign_id }}",
+            "lead_email": "={{ $json.lead_email }}",
+            "lead_first_name": "={{ $json.lead_first_name }}",
+            "lead_last_name": "={{ $json.lead_last_name }}",
+            "category_name": "={{ $json.category_name }}",
+            "sentiment_type": "={{ $json.sentiment_type }}"
+          },
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "month",
+              "displayName": "month",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "event_type",
+              "displayName": "event_type",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "campaign_id",
+              "displayName": "campaign_id",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "lead_email",
+              "displayName": "lead_email",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "lead_first_name",
+              "displayName": "lead_first_name",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "lead_last_name",
+              "displayName": "lead_last_name",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "category_name",
+              "displayName": "category_name",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "sentiment_type",
+              "displayName": "sentiment_type",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "48866153-3722-432e-93d2-556a393fd17b",
+      "name": "Log Event",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        672,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Smartlead Reply Tracking v5 (2026-09-23, fixed same day)\nScope: only EMAIL_SENT, EMAIL_REPLIED, EMAIL_BOUNCED, and LEAD_CATEGORY_UPDATED get logged to Sent Log. EMAIL_OPENED/CLICKED/UNSUBSCRIBED are dropped. Append-only, all campaigns account-wide (webhook id 875223).\n\nReport tab has exactly 3 sections, laid out left to right:\n- DAILY (A:F): date, Sent, Replied, Reply Rate %, Bounced, Bounce Rate %. Pure per-day activity - fine to sum every event.\n- MONTHLY (H:Q): month, Sent, Replied, Reply Rate %, Bounced, Bounce Rate %, OOO, Interested, Not Interested, Sender Originated Bounce. Same activity columns as Daily, PLUS category columns merged directly into the same table (not a separate section). The category columns (N:Q) read from Section 3's detail list, not from raw Sent Log events, so a lead recategorized this month after being wrong last month shows up once, in this month's new bucket only.\n- CURRENT CATEGORY STATE (S:V): live snapshot, deduped by lead. S5 spills unique lead_emails with a category event; T5 finds each one's LAST matching ROW NUMBER in Sent Log (not timestamp - Sheets does not auto-parse a full ISO8601 string with T/Z/milliseconds as a date, so a MAXIFS-on-timestamp approach silently returns 0; row number works because Sent Log is strictly append-only, so the physically last matching row IS the latest event); U5 pulls the category at that row via MAP+INDEX; V5 pulls that row's month the same way - this V column is what Monthly's category formulas read from. S2:V3 are live COUNTIF totals over the deduped U column.\n\nDate/month columns (A, H, and the category_month helper at V) are formatted as real dates (yyyy-mm-dd / yyyy-mm) via a direct Sheets API numberFormat call - without this they display as raw serial numbers (46288 instead of 2026-08-15).\n\nKnown fragility, twice observed: incremental single/few-cell writes near these spilling array formulas (MAP/FILTER/SORT/UNIQUE) have twice caused entire pre-existing formula blocks to silently vanish - not just recompute wrong, the stored formula text itself gone on the next read. Root cause not identified. Every fix in this section has been done as one full clear-and-rewrite of the whole area in a single batchUpdate call, never a patch to one or two cells - that has been reliable both times. If this area ever looks wrong again, rebuild the whole Report tab area, don't try to patch a single cell.\n\nAlso logged for the record: a row-cleanup step once deleted ALL Sent Log data (not just the intended bad rows) because the result wasn't re-verified after running. Caught immediately, no lasting damage - every delete since has been verified right after with a real read.\n\nField extraction fixed against a REAL LEAD_CATEGORY_UPDATED payload (webhook event_id 81c48d4a-1670-4ef0-a89a-8a553f60ab7a) - lead info is under body.lead_data not body.lead; category arrives as both a string (body.category) and an object (body.lead_data.category). Category matching criteria fixed against the account's real category list (GET /api/v1/leads/fetch-categories): real names are \"Out Of Office\" and \"Not Interested\" - those exact strings are what the formulas match on, \"OOO\"/\"Uninterest\" are just this report's shorter column labels. \"Sender Originated Bounce\" and \"Interested\" match real category names exactly.\n\nConfirmed live: manually recategorizing a lead in the Smartlead UI DOES re-fire this webhook. Verified live with a real cross-month recategorization test before trusting the no-double-count design.\n\nWebhook path includes a random token instead of verifying Smartlead HMAC signatures - deliberate, documented in Parse Event.",
+        "height": 460,
+        "width": 1212,
+        "color": 5
+      },
+      "id": "81155998-5307-4309-87a1-2981769a69b4",
+      "name": "Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        -624
+      ]
+    }
+  ]
+}

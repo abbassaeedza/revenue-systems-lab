@@ -1,0 +1,91 @@
+{
+  "name": "Pipeline Error Handler",
+  "active": true,
+  "triggerCount": 0,
+  "nodeCount": 3,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "binaryMode": "separate"
+  },
+  "description": "Shared error handler for all workflows in an outbound lead pipeline. Set as each workflow Error Workflow setting. Logs every failure to pipeline_runs and appends an error row to the tracking sheet Runs tab.",
+  "connections": {
+    "On Any Pipeline Error": {
+      "main": [
+        [
+          {
+            "node": "Build Error Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Error Email": {
+      "main": [
+        [
+          {
+            "node": "Email Failure Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "cece60de-eb18-4dc9-84c2-3185878cf654",
+      "name": "On Any Pipeline Error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "\nconst job = items[0].json;\nconst now = new Date().toISOString();\nconst workflowName = (job.workflow && job.workflow.name) ? job.workflow.name : 'unknown';\nconst errMsgRaw = job.execution && job.execution.error ? job.execution.error : null;\nconst errMsg = errMsgRaw ? (errMsgRaw.message || String(errMsgRaw)) : 'Unknown error';\nconst errNode = (job.execution && job.execution.lastNodeExecuted) ? job.execution.lastNodeExecuted : null;\n\nconst subject = 'Pipeline error: ' + workflowName;\nconst body = 'Workflow: ' + workflowName + '\\n' +\n  'Failed node: ' + (errNode || 'unknown') + '\\n' +\n  'Error: ' + errMsg + '\\n' +\n  'Time: ' + now;\n\nreturn [{ json: { subject: subject, body: body } }];\n"
+      },
+      "id": "c0339c4c-1984-41b3-bab9-0e6f5731bb43",
+      "name": "Build Error Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        96
+      ]
+    },
+    {
+      "id": "918d6a57-5c05-4513-b794-fa67b9987340",
+      "name": "Email Failure Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        96
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "{{ALERT_EMAIL}}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    }
+  ]
+}

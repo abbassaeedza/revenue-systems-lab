@@ -1,0 +1,457 @@
+{
+  "name": "Staleness Recheck",
+  "active": true,
+  "triggerCount": 1,
+  "nodeCount": 11,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "errorWorkflow": "9fdiBgD7g0Ji6Mpk"
+  },
+  "connections": {
+    "Daily Schedule": {
+      "main": [
+        [
+          {
+            "node": "Compute 45-Day Cutoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute 45-Day Cutoff": {
+      "main": [
+        [
+          {
+            "node": "Get Jobs Crossing Threshold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Jobs Crossing Threshold": {
+      "main": [
+        [
+          {
+            "node": "Process Each Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Run Log": {
+      "main": [
+        [
+          {
+            "node": "Get Updated Source Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Updated Source Stats": {
+      "main": [
+        [
+          {
+            "node": "Update Source Stats Sheet Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recheck TheirStack Job": {
+      "main": [
+        [
+          {
+            "node": "Build Update Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Each Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Update Payload": {
+      "main": [
+        [
+          {
+            "node": "Update Job Posting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Job Posting": {
+      "main": [
+        [
+          {
+            "node": "Process Each Job",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Each Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Each Job": {
+      "main": [
+        [
+          {
+            "node": "Build Run Log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Recheck TheirStack Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "id": "a40708d5-6f58-4efb-92c0-b631f9e53c40",
+      "name": "Sticky Note 8c959baa",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        608,
+        464
+      ],
+      "parameters": {
+        "content": "## Staleness Recheck (daily) - targeted one-time TheirStack re-check for the non-ATS ~90%\nThe ATS Poller tracks closed_at for ATS-hosted postings for free forever. Non-ATS postings\n(ats=theirstack, ~90% of volume, mostly LinkedIn/Indeed) never get re-verified after weekly\ndiscovery, so closed_at can stay permanently null even after the real job closed, letting a\nstale stale_posting signal (Scoring, 45-day threshold) persist forever on a dead posting.\n\nFix: once, at the exact moment a posting crosses 45 days open (first_seen <= today-45,\nstale_checked_at still null), call TheirStack job_id_or for that ONE job (1 credit, confirmed\nlive 2026-09-22 - response has data[].closed_at, null data or a non-null closed_at both mean\nclosed). Sets stale_checked_at regardless of outcome so it is never re-checked again - this is\na one-time correction at the signal boundary, not continuous polling, per the credit-efficiency\nstanding rule. ponytail: capped 50 jobs/run - same cap pattern as Find Hiring Contacts.\n\nTouches hiring-source data but never increments contacts_sourced (a status refresh, not new\nvolume) - same non-incrementing Source Stats resync pattern as the ATS Poller.",
+        "color": 4
+      }
+    },
+    {
+      "id": "b64260f2-608a-426a-8194-9bf578c6a02a",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        464
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 4
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "acbc9431-4988-4e6e-ae73-dc5a5b90c770",
+      "name": "Compute 45-Day Cutoff",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        464
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "\nconst today = new Date();\nconst cutoff = new Date(today.getTime() - 45 * 24 * 60 * 60 * 1000);\nreturn [{ json: { cutoffDate: cutoff.toISOString().slice(0, 10), todayDate: today.toISOString().slice(0, 10) } }];\n"
+      }
+    },
+    {
+      "id": "f61acdee-19c9-44ed-85e7-c787b40604cb",
+      "name": "Get Jobs Crossing Threshold",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        448,
+        464
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ \"https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/job_postings?ats=eq.theirstack&closed_at=is.null&stale_checked_at=is.null&first_seen=lte.\" + $json.cutoffDate + \"&select=id,external_id&limit=50\" }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "7d3f8b6c-89ea-4e56-b0e7-252529974814",
+      "name": "Build Run Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        96
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "\nconst total = items.length;\nconst nowIso = new Date().toISOString();\nconst month = new Date().toISOString().slice(0, 7) + '-01';\nconst dbPayload = { workflow_name: 'Staleness Recheck', run_started_at: nowIso, run_finished_at: nowIso, status: 'success', items_processed: { jobs_rechecked: total } };\nreturn [{ json: { dbPayloadJson: JSON.stringify(dbPayload), month } }];\n"
+      }
+    },
+    {
+      "id": "c053f528-9c4c-4982-8e3d-6a7925db8237",
+      "name": "Get Updated Source Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1120,
+        192
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ \"https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/source_stats?source=eq.hiring&month=eq.\" + $(\"Build Run Log\").first().json.month + \"&select=*\" }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "0b953b29-7b24-485b-832d-10355d062ac4",
+      "name": "Update Source Stats Sheet Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1344,
+        192
+      ],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1B6uaEu_jHawmZXvNx_Bx7RVP5vwml07CstWGdgsODmg"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Source Stats"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "source",
+            "month"
+          ],
+          "value": {
+            "source": "={{ $json.source }}",
+            "month": "={{ $json.month }}",
+            "contacts_sourced": "={{ $json.contacts_sourced }}",
+            "emails_found": "={{ $json.emails_found }}",
+            "emails_sent": "={{ $json.emails_sent }}",
+            "replies": "={{ $json.replies }}",
+            "positive_replies": "={{ $json.positive_replies }}",
+            "bounces": "={{ $json.bounces }}",
+            "complaints": "={{ $json.complaints }}"
+          },
+          "schema": [
+            {
+              "id": "source",
+              "displayName": "source",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "month",
+              "displayName": "month",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contacts_sourced",
+              "displayName": "contacts_sourced",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "emails_found",
+              "displayName": "emails_found",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "emails_sent",
+              "displayName": "emails_sent",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "replies",
+              "displayName": "replies",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "positive_replies",
+              "displayName": "positive_replies",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "bounces",
+              "displayName": "bounces",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "complaints",
+              "displayName": "complaints",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "3c5b1a7c-5d05-4510-ad99-55cceddfccc6",
+      "name": "Recheck TheirStack Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        896,
+        384
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.theirstack.com/v1/jobs/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { job_id_or: [ Number($json.external_id) ], limit: 1 } }}"
+      },
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "2f3e7eee-8291-4e5c-9fd3-2039aa03957e",
+      "name": "Build Update Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        384
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "\nconst registryRow = $('Get Jobs Crossing Threshold').item.json;\nconst today = $('Compute 45-Day Cutoff').first().json.todayDate;\nconst raw = items[0].json || {};\nconst data = raw.data || [];\nconst stillOpen = data.length > 0 && !data[0].closed_at;\nconst update = { stale_checked_at: today };\nif (!stillOpen) {\n  update.closed_at = (data[0] && data[0].closed_at) ? String(data[0].closed_at).slice(0, 10) : today;\n}\nreturn [{ json: { jobId: registryRow.id, updatePayloadJson: JSON.stringify(update), reclosed: !stillOpen } }];\n"
+      }
+    },
+    {
+      "id": "e82dc61c-7281-4190-a377-6b17b1430309",
+      "name": "Update Job Posting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1344,
+        464
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ \"https://{{SUPABASE_PROJECT}}.supabase.co/rest/v1/job_postings?id=eq.\" + $json.jobId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.updatePayloadJson }}"
+      },
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "{{CREDENTIAL_ID}}",
+          "name": "{{CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "0ebc458d-7b99-4e15-9e84-4c7f5e38edcf",
+      "name": "Process Each Job",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        672,
+        464
+      ],
+      "parameters": {
+        "batchSize": 1
+      }
+    }
+  ]
+}
