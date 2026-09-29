@@ -1,0 +1,18 @@
+{
+  "_note": "Sanitized reference (real: 19 nodes, daily 5am). Credentials, DB hostname, and internal identifiers replaced with placeholders; node graph and logic are real.",
+  "trigger": {"name": "Daily Schedule", "type": "n8n-nodes-base.scheduleTrigger"},
+  "stages": [
+    {"name": "Get Active ATS Registry", "type": "n8n-nodes-base.httpRequest", "note": "Reads which job boards to poll (Greenhouse/Lever/Ashby/Recruitee/Workable) - this registry is itself written by the discovery stage, which recognizes known ATS board URL patterns and adds a row per company+board it finds."},
+    {"name": "Build Run Log", "type": "n8n-nodes-base.code"},
+    {"name": "Poll Each Registry Row", "type": "n8n-nodes-base.splitInBatches", "note": "Per-registry-row batching, same isolation principle as every other stage in this pipeline - one board's API hiccup can't abort the rest of the poll."},
+    {"name": "Fetch Board Jobs", "type": "n8n-nodes-base.httpRequest"},
+    {"name": "Parse ATS Jobs", "type": "n8n-nodes-base.code"},
+    {"name": "Get Existing Open Postings", "type": "n8n-nodes-base.httpRequest"},
+    {"name": "Compute Diff", "type": "n8n-nodes-base.code", "note": "The actual point of this workflow: classifies each posting as new / still-open / closed by diffing the board's current listing against what the database already has open. New postings get inserted, still-open postings just get a freshness timestamp bump, and postings that disappeared from the board get closed."},
+    {"name": "Has Upserts? -> Bulk Upsert Current Jobs", "type": "n8n-nodes-base.if / n8n-nodes-base.httpRequest"},
+    {"name": "Has Closed Jobs? -> Close Missing Jobs", "type": "n8n-nodes-base.if / n8n-nodes-base.httpRequest"},
+    {"name": "Update Registry Success / Handle Failure -> Update Registry Failure", "type": "n8n-nodes-base.httpRequest / n8n-nodes-base.code / n8n-nodes-base.httpRequest", "note": "Per-row success/failure is tracked on the registry itself, not just logged globally - a board that's been failing for a while is visible at the registry level, not buried in a run log."},
+    {"name": "Get Updated Source Stats -> Update Source Stats Sheet Row -> Increment Row Stats", "type": "n8n-nodes-base.httpRequest / n8n-nodes-base.googleSheets / n8n-nodes-base.httpRequest"}
+  ],
+  "why_this_exists": "TheirStack Discovery (the weekly seed stage) only tells you a posting existed the day it searched. Without this stage, a posting closed the day after discovery would stay 'open' in the database for up to a week until the next weekly TheirStack run - which means Scoring would keep awarding 'stale posting' points to a company that already filled the role. ATS Poller closes that gap daily by going straight to the source board (Greenhouse/Lever/etc.) rather than waiting on the next weekly discovery pass."
+}
