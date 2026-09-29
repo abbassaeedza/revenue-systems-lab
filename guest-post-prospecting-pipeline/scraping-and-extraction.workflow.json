@@ -1,0 +1,93 @@
+{
+  "_note": "Sanitized reference covering the search-discovery and email-extraction stages. Real credentials, spreadsheet IDs, and search-topic keyword lists replaced with placeholders. Control flow and dedup/retry logic are unchanged from production.",
+  "search_stage": {
+    "description": "A launcher fans query sets out to a parallel worker sub-workflow (n8n Execute Workflow node, 'each' mode). Each set of ~5 search-engine queries runs as its own parallel worker invocation rather than one long sequential loop.",
+    "nodes": [
+      {"name": "Start Search", "type": "n8n-nodes-base.manualTrigger"},
+      {
+        "name": "Query Sets (N per set)",
+        "type": "n8n-nodes-base.code",
+        "note": "Hardcoded array of query-set objects ({setName, queries[]}), one item per set. Real deployment used ~23 sets of 5 topic-variant queries each (e.g. 'guest post <topic>', 'write for us <topic>', 'submit article <topic>', 'contribute <topic> blog', 'guest post guidelines <topic>') covering several related service topics - deliberately varied phrasing since search engines rank these query patterns differently."
+      },
+      {
+        "name": "Run Worker Per Set (Parallel)",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "parameters": {"mode": "each", "workflowId": "{{WORKER_WORKFLOW_ID}}"}
+      }
+    ],
+    "worker_sub_workflow": [
+      {"name": "When Called By Launcher", "type": "n8n-nodes-base.executeWorkflowTrigger"},
+      {
+        "name": "Generate Page Requests",
+        "type": "n8n-nodes-base.code",
+        "note": "Expands each {setName, queries[]} into one item per (query, page) pair - 2 result pages per query."
+      },
+      {
+        "name": "Search via SERP API",
+        "type": "n8n-nodes-base.httpRequest",
+        "parameters": {"method": "POST", "url": "https://google.serper.dev/search", "batching": {"batch": {"batchSize": 1}}},
+        "credentials": {"httpHeaderAuth": {"id": "{{SERP_API_CREDENTIAL_ID}}", "name": "{{SERP_API_CREDENTIAL}}"}}
+      },
+      {"name": "Extract URLs From Results", "type": "n8n-nodes-base.code"},
+      {
+        "name": "Filter & Dedupe Domains",
+        "type": "n8n-nodes-base.code",
+        "note": "Excludes forum/social/video-platform domains (discussion boards, YouTube, TikTok, Medium) since those aren't guest-post-able blogs, then dedupes by root domain within the run."
+      },
+      {
+        "name": "Save Prospect To Sheet",
+        "type": "n8n-nodes-base.googleSheets",
+        "parameters": {"operation": "appendOrUpdate", "matchingColumns": ["domain"]},
+        "credentials": {"googleSheetsOAuth2Api": {"id": "{{GOOGLE_SHEETS_CREDENTIAL_ID}}", "name": "{{GOOGLE_SHEETS_CREDENTIAL}}"}}
+      }
+    ]
+  },
+  "extraction_stage": {
+    "description": "Polls the prospect sheet on a schedule, batches unprocessed rows, and resolves an email address per domain through a two-step fallback (homepage, then /contact-us/) with a documented extraction/junk-filtering pass.",
+    "nodes": [
+      {"name": "Every N Trigger", "type": "n8n-nodes-base.scheduleTrigger"},
+      {
+        "name": "Get Prospects",
+        "type": "n8n-nodes-base.googleSheets",
+        "credentials": {"googleSheetsOAuth2Api": {"id": "{{GOOGLE_SHEETS_CREDENTIAL_ID}}", "name": "{{GOOGLE_SHEETS_CREDENTIAL}}"}}
+      },
+      {
+        "name": "Get Next Batch",
+        "type": "n8n-nodes-base.code",
+        "note": "Filters to rows not yet Done/No-Email, and not yet at max retry attempts on prior Errors; sorts by original row order; caps batch size."
+      },
+      {"name": "Loop Over Prospects", "type": "n8n-nodes-base.splitInBatches"},
+      {
+        "name": "Fetch Homepage",
+        "type": "n8n-nodes-base.httpRequest",
+        "parameters": {"onError": "continueRegularOutput", "options": {"timeout": 15000}},
+        "note": "onError continues rather than halting the batch - one unreachable site never blocks the rest."
+      },
+      {
+        "name": "Extract Emails Primary",
+        "type": "n8n-nodes-base.code",
+        "note": "Regex email extraction with a real junk-filtering pass: strips script/style tags first, rejects file-extension false-positives (matches ending in .png/.jpg/.css/etc that regex mistakes for TLDs), rejects a placeholder-domain denylist (example.com, yourcompany.com, ...), rejects a placeholder-local-part denylist (noreply, test, johndoe, ...), rejects 32-char hex strings (tracking pixel IDs misread as emails), and fixes a specific encoding artifact where obfuscated mailto links decode with a stray 'u0041'-style unicode-escape prefix stuck to the front of the local part."
+      },
+      {"name": "Has Emails?", "type": "n8n-nodes-base.if"},
+      {
+        "name": "Fetch Contact Page",
+        "type": "n8n-nodes-base.httpRequest",
+        "note": "Fallback fetch of /contact-us/ only runs if the homepage pass found nothing - avoids a second request per domain in the common case."
+      },
+      {
+        "name": "Extract Emails Fallback",
+        "type": "n8n-nodes-base.code",
+        "note": "Same extraction logic as the primary pass; final status becomes Done (email found), No Email (both pages fetched cleanly, nothing found), or Error (a fetch itself failed, eligible for retry up to the attempt cap)."
+      },
+      {
+        "name": "Update Sheet (Found/Final)",
+        "type": "n8n-nodes-base.googleSheets",
+        "parameters": {"operation": "appendOrUpdate", "matchingColumns": ["domain"]},
+        "retryOnFail": true,
+        "maxTries": 5,
+        "credentials": {"googleSheetsOAuth2Api": {"id": "{{GOOGLE_SHEETS_CREDENTIAL_ID}}", "name": "{{GOOGLE_SHEETS_CREDENTIAL}}"}}
+      },
+      {"name": "Wait Between Prospects", "type": "n8n-nodes-base.wait", "parameters": {"amount": 4}}
+    ]
+  }
+}

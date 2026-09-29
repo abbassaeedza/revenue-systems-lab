@@ -1,0 +1,192 @@
+{
+  "_note": "Sanitized reference export. Real credentials, sender/reply-to addresses, company name, and spreadsheet IDs replaced with placeholders. Node logic, prompts, and control flow are unchanged from production.",
+  "nodes": [
+    {
+      "parameters": {"rule": {"interval": [{"field": "cronExpression", "expression": "0 9 * * *"}]}},
+      "name": "Daily 9am Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {},
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "documentId": {"__rl": true, "value": "{{TRACKING_SHEET_ID}}", "mode": "id"},
+        "sheetName": {"__rl": true, "value": "tracking", "mode": "name"},
+        "options": {}
+      },
+      "name": "Read Tracking",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "alwaysOutputData": true,
+      "credentials": {"googleSheetsOAuth2Api": {"id": "{{GOOGLE_SHEETS_CREDENTIAL_ID}}", "name": "{{GOOGLE_SHEETS_CREDENTIAL}}"}}
+    },
+    {
+      "parameters": {
+        "documentId": {"__rl": true, "value": "{{PROSPECT_SHEET_ID}}", "mode": "id"},
+        "sheetName": {"__rl": true, "value": "prospect", "mode": "name"},
+        "options": {}
+      },
+      "name": "Read Prospects",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "credentials": {"googleSheetsOAuth2Api": {"id": "{{GOOGLE_SHEETS_CREDENTIAL_ID}}", "name": "{{GOOGLE_SHEETS_CREDENTIAL}}"}}
+    },
+    {
+      "parameters": {"mode": "chooseBranch", "useDataOfInput": "2"},
+      "name": "Wait For Both Sheets",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reads both sheets, drops anyone already contacted, and queues the rest.\n// Only rows with Status Done/true (an email was actually found) are eligible.\nconst READY = ['done', 'true'];\nconst trackingRows = $('Read Tracking').all().map(item => item.json);\nconst contactedEmails = new Set(trackingRows.map(r => (r['Email Address'] || '').trim().toLowerCase()).filter(Boolean));\nconst todayStr = new Date().toISOString().slice(0, 10);\nconst startCountToday = trackingRows.filter(r => (r['Date Sent'] || '').slice(0, 10) === todayStr).length;\nconst startCountAllTime = trackingRows.filter(r => (r['Email Address'] || '').trim() !== '').length;\nconst queuedThisRun = new Set();\nconst output = [];\nfor (const item of $('Read Prospects').all()) {\n  const row = item.json;\n  const status = String(row.Status || '').trim().toLowerCase();\n  if (READY.indexOf(status) === -1) continue;\n  const emailList = String(row.Emails || '').split(/[,;]/).map(e => e.trim()).filter(Boolean);\n  for (const email of emailList) {\n    const key = email.toLowerCase();\n    if (contactedEmails.has(key) || queuedThisRun.has(key)) continue;\n    queuedThisRun.add(key);\n    output.push({ json: { domain: row.Domain, recipientEmail: email, searchQuery: row.query || '', pageUrl: row.url || '', pageTitle: row.title || '', pageSnippet: (row.snippet || '').slice(0, 300), queuePosition: output.length, startCountToday, startCountAllTime } });\n  }\n}\nreturn output;"
+      },
+      "name": "Filter Unsent Prospects",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {"parameters": {"options": {}}, "name": "Loop Over Prospects", "type": "n8n-nodes-base.splitInBatches", "typeVersion": 3},
+    {
+      "parameters": {
+        "jsCode": "// 2 mailboxes x 20/day each = 40/day shared cap, alternated evenly across the run.\nconst DAILY_CAP = 40;\nconst sentSoFarToday = ($json.startCountToday || 0) + ($json.queuePosition || 0);\nreturn [{ json: { ...$json, capReached: sentSoFarToday >= DAILY_CAP, dailyCap: DAILY_CAP } }];"
+      },
+      "name": "Check Daily Cap",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {"parameters": {"conditions": {"conditions": [{"leftValue": "={{ $json.capReached }}", "operator": {"type": "boolean", "operation": "true"}}]}}, "name": "Daily Cap Reached?", "type": "n8n-nodes-base.if", "typeVersion": 2.3},
+    {"parameters": {}, "name": "Daily Cap Hit - Stopping", "type": "n8n-nodes-base.noOp", "typeVersion": 1},
+    {
+      "parameters": {
+        "url": "https://api.neverbounce.com/v4.2/single/check",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {"parameters": [{"name": "email", "value": "={{ $json.recipientEmail }}"}, {"name": "timeout", "value": "15"}]},
+        "options": {}
+      },
+      "name": "Verify Email (NeverBounce)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {"httpQueryAuth": {"id": "{{NEVERBOUNCE_CREDENTIAL_ID}}", "name": "{{NEVERBOUNCE_CREDENTIAL}}"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decides whether an address is safe to mail. 'catchall' domains accept anything\n// (common for blog/agency domains) so they're accepted by default; stricter\n// deployments can drop 'catchall' from ACCEPT at the cost of volume.\nconst ACCEPT = ['valid', 'catchall'];\nconst PERMANENT = ['invalid', 'disposable'];\nconst res = $json || {};\nconst apiOk = res.status === 'success';\nconst result = apiOk ? String(res.result || 'unknown') : 'api_error';\nreturn [{ json: { ...$('Check Daily Cap').item.json, deliverable: ACCEPT.indexOf(result) !== -1, logSkip: PERMANENT.indexOf(result) !== -1, verifyResult: result } }];"
+      },
+      "name": "Evaluate Verification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {"parameters": {"conditions": {"conditions": [{"leftValue": "={{ $json.deliverable }}", "operator": {"type": "boolean", "operation": "true"}}]}}, "name": "Deliverable?", "type": "n8n-nodes-base.if", "typeVersion": 2.3},
+    {"parameters": {"conditions": {"conditions": [{"leftValue": "={{ $json.logSkip }}", "operator": {"type": "boolean", "operation": "true"}}]}}, "name": "Permanent Failure?", "type": "n8n-nodes-base.if", "typeVersion": 2.3},
+    {
+      "parameters": {"documentId": {"__rl": true, "value": "{{TRACKING_SHEET_ID}}", "mode": "id"}, "sheetName": {"__rl": true, "value": "tracking", "mode": "name"}, "options": {"useAppend": true}},
+      "name": "Log Skipped to Tracking",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "credentials": {"googleSheetsOAuth2Api": {"id": "{{GOOGLE_SHEETS_CREDENTIAL_ID}}", "name": "{{GOOGLE_SHEETS_CREDENTIAL}}"}}
+    },
+    {
+      "parameters": {"jsCode": "// Alternate mailboxes evenly across the whole history, not just this run.\nconst useAccountA = ((($json.startCountAllTime || 0) + ($json.queuePosition || 0)) % 2 === 0);\nreturn [{ json: { ...$json, sendAccountLabel: useAccountA ? 'AccountA' : 'AccountB' } }];"},
+      "name": "Determine Account",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds the personalization prompt for the LLM-drafted mailbox, or the fixed\n// approved copy for the other mailbox. Only references a scraped article by\n// name if the title looks like an actual article, not a nav/category page.\nconst COMPANY = '{{COMPANY_NAME}}';\nfunction toHost(raw) { let s = String(raw||'').trim(); s = s.split('#')[0].split('?')[0].replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\\/\\//, '').replace(/^[^@\\/]*@/, ''); return s.split('/')[0].split(':')[0].toLowerCase().replace(/^www\\./, ''); }\nfunction toBrand(host) { if (!host) return 'your'; let labels = host.split('.').filter(Boolean); if (labels.length > 1) labels = labels.slice(0, -1); const label = labels[labels.length-1] || host; return label.split(/[-_]/).filter(Boolean).map(w => w[0].toUpperCase()+w.slice(1)).join(' '); }\nfunction usableTitle(raw) { let t = String(raw||'').trim(); if (!t) return ''; t = t.split(/\\s+[|\\u2013\\u2014-]\\s+/)[0].trim(); if (/guest post|write for us|contribute|submit|sponsored/i.test(t)) return ''; if (/^(home|blogs?|news|articles?|resources?|categor|about|contact)\\b/i.test(t)) return ''; if (t.split(/\\s+/).length < 4) return ''; return t; }\nconst host = toHost($json.domain);\nconst siteName = toBrand(host);\nconst isAccountA = $json.sendAccountLabel === 'AccountA';\nconst articleTitle = usableTitle($json.pageTitle);\nconst ANGLES = ['what this actually costs a small team to run', 'why a build pipeline change moves quality metrics', 'the hidden cost of a slow first-week experience', 'what QA looks like shipping weekly on two platforms'];\nconst angle = ANGLES[$json.queuePosition % ANGLES.length];\nconst LLM_PROMPT = ['Generate one fresh guest post outreach email, following the system instructions exactly.', 'You are a content marketer at ' + COMPANY + ' asking this blog about contributing a guest article.', 'Vary tone and structure meaningfully each time, never repeat a template.', articleTitle ? ('They published an article titled \"' + articleTitle + '\" - work one short, specific reference to it into the first paragraph. Do not say you loved it.') : 'No specific article was found - do not pretend to have read anything.'].join('\\n');\nconst FIXED_SUBJECT = 'Guest post for ' + siteName + ' on drop-off data';\nconst FIXED_BODY = 'Hi ' + siteName + ' team,\\n\\nMost guest articles on this topic repeat the same generic advice without the underlying math. We ran a data-backed experiment and turned it into an exclusive breakdown for a few select blogs.\\n\\nWould a short outline be worth sending over?\\n\\nBest,\\n' + COMPANY;\nreturn [{ json: { ...$json, domain: host, siteName, company: COMPANY, useFixedCopy: isAccountA, fixedSubject: isAccountA ? FIXED_SUBJECT : '', fixedBody: isAccountA ? FIXED_BODY : '', aiPrompt: isAccountA ? 'FIXED COPY, sent verbatim' : LLM_PROMPT } }];"
+      },
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {"parameters": {"conditions": {"conditions": [{"leftValue": "={{ $json.useFixedCopy }}", "operator": {"type": "boolean", "operation": "true"}}]}}, "name": "Use Fixed Copy?", "type": "n8n-nodes-base.if", "typeVersion": 2.3},
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.aiPrompt }}",
+        "options": {
+          "systemMessage": "You write outreach emails for {{COMPANY_NAME}}.\n\nShape: greeting line, blank line, exactly two short paragraphs, blank line, sign-off.\nLength limits (check before answering): body 50-125 words, 4-7 sentences total, every sentence under 20 words, subject 36-50 characters, exactly one ask.\nStyle: vary sentence length, use contractions, one concrete detail beats an adjective, no corporate-speak filler words (leverage, robust, synergy, seamless, etc), no em dashes, plain text only, no links in the body, sign off with the company name only (no personal name placeholder).\nOutput exactly: SUBJECT: <subject line>\\n\\n<email body>"
+        }
+      },
+      "name": "Generate New Pitch Draft",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1
+    },
+    {
+      "parameters": {"model": "{{LLM_MODEL}}", "options": {}},
+      "name": "LLM Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "credentials": {"groqApi": {"id": "{{GROQ_CREDENTIAL_ID}}", "name": "{{GROQ_CREDENTIAL}}"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "// Splits SUBJECT: line off the top, strips placeholder brackets/markdown/smart\n// punctuation the model sometimes emits, guarantees a 2-paragraph shape for the\n// LLM path (fixed copy is left untouched), and computes compliance stats\n// (word/sentence/subject-length counts) so the tracking sheet shows whether\n// the model actually stayed inside the prompt's own limits.\nconst source = $('Build Prompt').item.json;\nconst raw = source.useFixedCopy ? ('SUBJECT: ' + source.fixedSubject + '\\n\\n' + source.fixedBody) : ($json.output || '').toString();\n// ... cleaning/formatting logic identical in spirit to the real system: strip\n// placeholder brackets, normalize smart quotes/dashes, enforce paragraph count,\n// then compute wordCount/sentenceCount/subjectLength and an out-of-range flag\n// list so a reviewer can see at a glance whether a given send violated the\n// prompt's own style contract.\nreturn [{ json: { ...source, emailSubject: 'PLACEHOLDER_SUBJECT', emailBody: 'PLACEHOLDER_BODY', copyStats: 'see production implementation for full compliance-stats logic' } }];"
+      },
+      "name": "Personalize Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {"parameters": {"conditions": {"conditions": [{"leftValue": "={{ $json.sendAccountLabel }}", "operator": {"type": "string", "operation": "equals"}, "rightValue": "AccountB"}]}}, "name": "Route to Account", "type": "n8n-nodes-base.if", "typeVersion": 2.2},
+    {
+      "parameters": {"fromEmail": "{{SENDER_EMAIL_B}}", "toEmail": "={{ $json.recipientEmail }}", "subject": "={{ $json.emailSubject }}", "text": "={{ $json.emailBody }}", "options": {"replyTo": "{{REPLY_TO_B}}"}},
+      "name": "Send via Account B",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "credentials": {"smtp": {"id": "{{SMTP_CREDENTIAL_B_ID}}", "name": "{{SMTP_CREDENTIAL_B}}"}}
+    },
+    {
+      "parameters": {"fromEmail": "{{SENDER_EMAIL_A}}", "toEmail": "={{ $json.recipientEmail }}", "subject": "={{ $json.emailSubject }}", "text": "={{ $json.emailBody }}", "options": {"replyTo": "{{REPLY_TO_A}}"}},
+      "name": "Send via Account A",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "credentials": {"smtp": {"id": "{{SMTP_CREDENTIAL_A_ID}}", "name": "{{SMTP_CREDENTIAL_A}}"}}
+    },
+    {
+      "parameters": {"documentId": {"__rl": true, "value": "{{TRACKING_SHEET_ID}}", "mode": "id"}, "sheetName": {"__rl": true, "value": "tracking", "mode": "name"}, "options": {"useAppend": true}},
+      "name": "Log Sent to Tracking",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "credentials": {"googleSheetsOAuth2Api": {"id": "{{GOOGLE_SHEETS_CREDENTIAL_ID}}", "name": "{{GOOGLE_SHEETS_CREDENTIAL}}"}}
+    },
+    {"parameters": {"amount": "={{ Math.floor(Math.random() * 8) + 12 }}", "unit": "minutes"}, "name": "Wait Between Sends", "type": "n8n-nodes-base.wait", "typeVersion": 1.1}
+  ],
+  "connections": {
+    "Daily 9am Trigger": {"main": [[{"node": "Read Tracking", "type": "main", "index": 0}, {"node": "Read Prospects", "type": "main", "index": 0}]]},
+    "Manual Trigger": {"main": [[{"node": "Read Tracking", "type": "main", "index": 0}, {"node": "Read Prospects", "type": "main", "index": 0}]]},
+    "Read Tracking": {"main": [[{"node": "Wait For Both Sheets", "type": "main", "index": 0}]]},
+    "Read Prospects": {"main": [[{"node": "Wait For Both Sheets", "type": "main", "index": 1}]]},
+    "Wait For Both Sheets": {"main": [[{"node": "Filter Unsent Prospects", "type": "main", "index": 0}]]},
+    "Filter Unsent Prospects": {"main": [[{"node": "Loop Over Prospects", "type": "main", "index": 0}]]},
+    "Loop Over Prospects": {"main": [[], [{"node": "Check Daily Cap", "type": "main", "index": 0}]]},
+    "Check Daily Cap": {"main": [[{"node": "Daily Cap Reached?", "type": "main", "index": 0}]]},
+    "Daily Cap Reached?": {"main": [[{"node": "Daily Cap Hit - Stopping", "type": "main", "index": 0}], [{"node": "Verify Email (NeverBounce)", "type": "main", "index": 0}]]},
+    "Verify Email (NeverBounce)": {"main": [[{"node": "Evaluate Verification", "type": "main", "index": 0}]]},
+    "Evaluate Verification": {"main": [[{"node": "Deliverable?", "type": "main", "index": 0}]]},
+    "Deliverable?": {"main": [[{"node": "Determine Account", "type": "main", "index": 0}], [{"node": "Permanent Failure?", "type": "main", "index": 0}]]},
+    "Permanent Failure?": {"main": [[{"node": "Log Skipped to Tracking", "type": "main", "index": 0}], [{"node": "Loop Over Prospects", "type": "main", "index": 0}]]},
+    "Log Skipped to Tracking": {"main": [[{"node": "Loop Over Prospects", "type": "main", "index": 0}]]},
+    "Determine Account": {"main": [[{"node": "Build Prompt", "type": "main", "index": 0}]]},
+    "Build Prompt": {"main": [[{"node": "Use Fixed Copy?", "type": "main", "index": 0}]]},
+    "Use Fixed Copy?": {"main": [[{"node": "Personalize Email", "type": "main", "index": 0}], [{"node": "Generate New Pitch Draft", "type": "main", "index": 0}]]},
+    "Generate New Pitch Draft": {"main": [[{"node": "Personalize Email", "type": "main", "index": 0}]]},
+    "LLM Model": {"ai_languageModel": [[{"node": "Generate New Pitch Draft", "type": "ai_languageModel", "index": 0}]]},
+    "Personalize Email": {"main": [[{"node": "Route to Account", "type": "main", "index": 0}]]},
+    "Route to Account": {"main": [[{"node": "Send via Account B", "type": "main", "index": 0}], [{"node": "Send via Account A", "type": "main", "index": 0}]]},
+    "Send via Account B": {"main": [[{"node": "Log Sent to Tracking", "type": "main", "index": 0}]]},
+    "Send via Account A": {"main": [[{"node": "Log Sent to Tracking", "type": "main", "index": 0}]]},
+    "Log Sent to Tracking": {"main": [[{"node": "Wait Between Sends", "type": "main", "index": 0}]]},
+    "Wait Between Sends": {"main": [[{"node": "Loop Over Prospects", "type": "main", "index": 0}]]}
+  },
+  "pinData": {},
+  "meta": {"instanceId": "REDACTED"}
+}
